@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
@@ -15,6 +16,7 @@ class AulaApp : Application() {
     }
 
     companion object {
+        @SuppressLint("StaticFieldLeak") // the Application context lives as long as the process
         lateinit var context: Context
             private set
         val isReady: Boolean get() = ::context.isInitialized

@@ -118,7 +118,7 @@ fun CalendarScreen() {
             }
         }
         if (dayEvents.isEmpty()) {
-            item { if (week.isLoading && week.value == null) Loading() else EmptyState(L.t("Intet i kalenderen"), Icons.Filled.CalendarMonth, L.t("Der er ingen begivenheder denne dag.")) }
+            item { if (week.isLoading && week.value == null) Loading() else EmptyState(L.t("Intet i kalenderen"), Icons.Filled.CalendarMonth, subtitle = L.t("Der er ingen begivenheder denne dag.")) }
         }
         val firstUpcoming = dayEvents.indexOfFirst { it.startMs > now }.let { if (it < 0) dayEvents.size else it }
         dayEvents.forEachIndexed { i, e ->

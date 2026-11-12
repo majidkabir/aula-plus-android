@@ -6,11 +6,12 @@
 
     <application
         android:name=".AulaApp"
-        android:label="Aula+"
+        android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:theme="@style/Theme.AulaPlus">
         <activity
             android:name=".MainActivity"

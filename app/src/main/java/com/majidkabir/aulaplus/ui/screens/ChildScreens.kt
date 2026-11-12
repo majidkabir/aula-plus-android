@@ -349,7 +349,7 @@ fun WeekPlanScreen() {
         }
         if (!supported && Repo.session.value != null && visibleTasks.isEmpty()) {
             item { EmptyState(L.t("Ugeplan ikke understøttet endnu"), Icons.Outlined.Description,
-                L.t("Din skole bruger en ugeplan-udbyder, som Aula+ ikke kender endnu (understøtter Meebook og Min Uddannelse).")) }
+                subtitle = L.t("Din skole bruger en ugeplan-udbyder, som Aula+ ikke kender endnu (understøtter Meebook og Min Uddannelse).")) }
         } else if (plans.all { it.sections.isEmpty() }) {
             item { if (plan.isLoading) Loading() else EmptyState(L.t("Ingen ugeplan for denne uge"), Icons.Outlined.Description) }
         }

@@ -239,7 +239,7 @@ fun StaleBanner(error: String?, savedAt: Long?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun EmptyState(title: String, icon: ImageVector, subtitle: String? = null, modifier: Modifier = Modifier) {
+fun EmptyState(title: String, icon: ImageVector, modifier: Modifier = Modifier, subtitle: String? = null) {
     Column(modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(48.dp))
