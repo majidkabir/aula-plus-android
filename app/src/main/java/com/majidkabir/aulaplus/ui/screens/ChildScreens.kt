@@ -395,7 +395,9 @@ fun VacationRequestsScreen() {
     AulaScreen(title = L.t("Ferieanmodninger"), onBack = { nav.back() }, refreshing = Repo.vacationRequests.isLoading,
         onRefresh = { Repo.vacationRequests.refresh() }) {
         item { StaleBanner(Repo.vacationRequests.error, Repo.vacationRequests.savedAt) }
-        if (list.isEmpty()) item { EmptyState(L.t("Ingen ferieanmodninger"), Icons.Filled.WbSunny) }
+        if (list.isEmpty()) item {
+            if (Repo.vacationRequests.isLoading || Repo.vacationRequests.value == null) Loading() else EmptyState(L.t("Ingen ferieanmodninger"), Icons.Filled.WbSunny)
+        }
         if (list.isNotEmpty()) item {
             Text(L.t("Fortæl institutionen, om dit barn kommer i ferien."), style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
@@ -440,6 +442,7 @@ fun VacationAnswerDialog(r: VacationRequest, done: (Boolean) -> Unit) {
     }
     var comment by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var sending by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = { done(false) },
         title = { Text(r.title) },
@@ -471,11 +474,13 @@ fun VacationAnswerDialog(r: VacationRequest, done: (Boolean) -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(enabled = !sending, onClick = {
                 scope.launch {
+                    sending = true
                     runCatching { AulaApi.answerVacation(r, days.toList(), comment) }
                         .onSuccess { Repo.vacationRequests.refresh(); done(true) }
                         .onFailure { error = L.t("Ikke sendt: %s", it.message ?: "") }
+                    sending = false
                 }
             }) { Text(L.t("Send")) }
         },

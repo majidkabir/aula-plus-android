@@ -91,6 +91,7 @@ import com.majidkabir.aulaplus.ui.components.StaleBanner
 import com.majidkabir.aulaplus.ui.components.card
 import com.majidkabir.aulaplus.ui.components.childColor
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @Composable
@@ -105,7 +106,13 @@ fun MessagesScreen() {
     val older = remember { mutableStateListOf<ThreadSummary>() }
     var nextPage by remember { mutableIntStateOf(1) }
     var loadingOlder by remember { mutableStateOf(false) }
+    var noMoreOlder by remember { mutableStateOf(false) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) { Repo.threads.load(30) }
+    fun updateOlder(id: String, change: (ThreadSummary) -> ThreadSummary) {
+        val i = older.indexOfFirst { it.id == id }
+        if (i >= 0) older[i] = change(older[i])
+    }
 
     val all = ((Repo.threads.value ?: emptyList()) + older).distinctBy { it.id }
     val selected = AppState.selectedChildId?.let(AppState::child)
@@ -134,7 +141,7 @@ fun MessagesScreen() {
             }
         },
         refreshing = Repo.threads.isLoading,
-        onRefresh = { older.clear(); nextPage = 1; Repo.threads.refresh() },
+        onRefresh = { older.clear(); nextPage = 1; noMoreOlder = false; Repo.threads.refresh() },
         bottomBar = { AulaBottomBar() },
     ) {
         item { SearchField(search, L.t("Søg i beskeder")) { search = it } }
@@ -147,19 +154,25 @@ fun MessagesScreen() {
                 threads.forEachIndexed { i, t ->
                     ThreadRow(t, onLongClick = { deleting = t }, onStar = {
                         scope.launch {
-                            Repo.setMarked(t.id, !t.isMarked)
-                            runCatching { AulaApi.setMarked(t.id, !t.isMarked) }.onFailure { Repo.setMarked(t.id, t.isMarked) }
+                            Repo.setMarked(t.id, !t.isMarked); updateOlder(t.id) { it.copy(isMarked = !t.isMarked) }
+                            runCatching { AulaApi.setMarked(t.id, !t.isMarked) }
+                                .onFailure { Repo.setMarked(t.id, t.isMarked); updateOlder(t.id) { it.copy(isMarked = t.isMarked) } }
                         }
-                    }) { nav.open("thread/${t.id}") }
+                    }) {
+                        if (!t.isRead) updateOlder(t.id) { it.copy(isRead = true) }
+                        nav.open("thread/${t.id}")
+                    }
                     if (i < threads.size - 1) HorizontalDivider(Modifier.padding(start = 26.dp))
                 }
             }
         }
-        if (search.isBlank() && threads.isNotEmpty()) item {
-            TextButton(onClick = {
+        if (search.isBlank() && threads.isNotEmpty() && !noMoreOlder) item {
+            TextButton(enabled = !loadingOlder, onClick = {
                 scope.launch {
                     loadingOlder = true
-                    runCatching { AulaApi.threads(nextPage) }.onSuccess { older += it.first; nextPage++ }
+                    runCatching { AulaApi.threads(nextPage) }
+                        .onSuccess { (list, more) -> older += list; nextPage++; noMoreOlder = !more || list.isEmpty() }
+                        .onFailure { android.widget.Toast.makeText(ctx, it.message ?: "", android.widget.Toast.LENGTH_SHORT).show() }
                     loadingOlder = false
                 }
             }, modifier = Modifier.fillMaxWidth()) {
@@ -175,7 +188,9 @@ fun MessagesScreen() {
                 TextButton(onClick = {
                     deleting = null
                     scope.launch {
-                        runCatching { AulaApi.deleteThread(t.id) }.onSuccess { Repo.removeThread(t.id); older.removeAll { it.id == t.id } }
+                        runCatching { AulaApi.deleteThread(t.id) }
+                            .onSuccess { Repo.removeThread(t.id); older.removeAll { it.id == t.id } }
+                            .onFailure { android.widget.Toast.makeText(ctx, L.t("Ikke slettet: %s", it.message ?: ""), android.widget.Toast.LENGTH_LONG).show() }
                     }
                 }) { Text(L.t("Slet"), color = Color(0xFFFF3B30)) }
             },
@@ -259,16 +274,28 @@ fun ThreadScreen(id: String) {
     var sendError by remember { mutableStateOf<String?>(null) }
     val me = Repo.session.value?.displayName.orEmpty()
 
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    var scrolledToNewest by remember { mutableStateOf(false) }
     LaunchedEffect(id) {
-        page.load(if (summary?.isRead == false) 0 else 300)
+        // Opened from a notification or an older page: we don't know if it's read, so treat it as unread.
+        val unread = summary?.isRead != true
+        page.load(if (unread) 0 else 300)
         val p = page.value
-        if (summary?.isRead == false && p != null && p.isOwnMailbox) {
+        if (unread && p != null && p.isOwnMailbox) {
             p.messages.firstOrNull()?.let { newest ->
                 runCatching { AulaApi.markRead(id, newest.id) }.onSuccess { Repo.markRead(id) }
             }
         }
     }
     val messages = ((page.value?.messages ?: emptyList()) + older).distinctBy { it.id }.reversed()
+    // Like any chat: open at the newest message (once; loading older ones keeps the position).
+    LaunchedEffect(page.value != null) {
+        if (page.value != null && !scrolledToNewest) {
+            scrolledToNewest = true
+            val count = androidx.compose.runtime.snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 1 }
+            listState.scrollToItem(count - 1)
+        }
+    }
 
     AulaScreen(
         title = page.value?.subject?.ifBlank { null } ?: summary?.subject ?: "",
@@ -276,6 +303,7 @@ fun ThreadScreen(id: String) {
         refreshing = page.isLoading,
         onRefresh = { page.refresh() },
         spacing = 8.dp,
+        listState = listState,
         bottomBar = {
             if (page.value?.isOwnMailbox != false) Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                 Column(Modifier.navigationBarsPadding().imePadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -356,6 +384,7 @@ fun MessageBubble(m: Message, mine: Boolean, showSender: Boolean) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ComposeScreen() {
     val nav = LocalNav.current
@@ -393,7 +422,8 @@ fun ComposeScreen() {
         item {
             Column(Modifier.card(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(L.t("Til"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (recipients.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (recipients.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     recipients.forEach { r ->
                         Row(Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer).clickable { recipients.remove(r) }
                             .padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {

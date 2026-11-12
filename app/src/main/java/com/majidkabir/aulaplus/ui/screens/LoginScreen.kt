@@ -86,7 +86,11 @@ fun LoginScreen() {
                     TokenStore.exchange(code, pkce.verifier)
                     AppState.didLogin()
                 } catch (e: Exception) {
-                    errorText = if (e.message == "state") L.t("Login blev afbrudt (state passede ikke). Prøv igen.") else e.message
+                    errorText = when {
+                        e.message == "state" -> L.t("Login blev afbrudt (state passede ikke). Prøv igen.")
+                        e is java.io.IOException -> L.t("Ingen forbindelse til Aula.")
+                        else -> e.message
+                    }
                 } finally { working = false }
             }
         }

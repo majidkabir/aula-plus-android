@@ -109,7 +109,7 @@ fun TodayScreen() {
             ).awaitAll()
         }
     }
-    val todays = (week.value ?: emptyList()).filter { AulaDate.isToday(it.startMs) }
+    val todays = (week.value ?: emptyList()).filter { it.occursOn(AulaDate.today()) }
     AulaScreen(
         title = L.t("I dag"),
         actions = {
@@ -178,7 +178,7 @@ fun TodayScreen() {
             item { SectionTitle(L.t("Nye opslag"), Icons.Filled.Newspaper, tint = Color(0xFFAF52DE)) }
             recent.forEach { p -> item(key = "post-${p.id}") { PostCard(p, compact = true) { nav.open("post/${p.id}") } } }
         }
-        val soon = (Repo.importantDates.value ?: emptyList())
+        val soon = (Repo.importantDates.value ?: emptyList()).sortedBy { it.startMs }
             .filter { it.startMs > System.currentTimeMillis() - 86_400_000 && it.startMs < System.currentTimeMillis() + 14 * 86_400_000L }.take(3)
         if (soon.isNotEmpty()) {
             item { SectionTitle(L.t("Kommende"), Icons.Filled.Star, tint = Color(0xFFFFCC00)) }
@@ -203,7 +203,7 @@ fun TodayHero(todays: List<Event>) {
     val pickup = (Repo.presence.value ?: emptyList()).filter { it.childId in ids && it.checkOut == null }.mapNotNull { it.plannedExit }.minOrNull()
     val now = System.currentTimeMillis()
     val nextEvent = todays.firstOrNull { it.startMs > now }
-    val nextDate = (Repo.importantDates.value ?: emptyList()).firstOrNull { it.startMs > now }
+    val nextDate = (Repo.importantDates.value ?: emptyList()).sortedBy { it.startMs }.firstOrNull { it.startMs > now }
     val next: Pair<String, String>? = nextEvent?.let { it.title to AulaDate.time(it.startMs) }
         ?: nextDate?.let {
             val d = AulaDate.localDate(it.startMs)

@@ -66,6 +66,7 @@ fun AulaScreen(
     onRefresh: (suspend () -> Unit)? = null,
     bottomBar: @Composable () -> Unit = {},
     spacing: androidx.compose.ui.unit.Dp = Dims.gap,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -94,6 +95,7 @@ fun AulaScreen(
             val list: @Composable () -> Unit = {
                 LazyColumn(
                     Modifier.fillMaxSize(),
+                    state = listState,
                     contentPadding = PaddingValues(start = Dims.pad, end = Dims.pad, top = inner.calculateTopPadding() + 4.dp,
                         bottom = inner.calculateBottomPadding() + 24.dp),
                     verticalArrangement = Arrangement.spacedBy(spacing),

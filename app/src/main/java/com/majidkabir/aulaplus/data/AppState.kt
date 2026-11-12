@@ -55,6 +55,7 @@ object AppState {
         TokenStore.clear()
         AulaApi.reset()
         DiskCache.clear()
+        AulaApi.clearDownloads()
         Repo.reset()
         selectedChildId = null
         WidgetWriter.clear()
