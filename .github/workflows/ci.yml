@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build, test
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest 2>&1 | tee build.log | grep -E "^e: |error:|FAIL|BUILD|warning:.*aulaplus" | head -150
+      - name: Fail if build failed
+        run: grep -q "BUILD SUCCESSFUL" build.log
+      - name: Screenshots (Paparazzi)
+        run: ./gradlew --no-daemon recordPaparazziDebug 2>&1 | tail -20
+      - name: Publish screenshots + APK to branch
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          SHA=${GITHUB_SHA::7}
+          mkdir -p /tmp/pub
+          cp app/src/test/snapshots/images/*.png /tmp/pub/ 2>/dev/null || true
+          cp app/build/outputs/apk/debug/app-debug.apk /tmp/pub/aula-plus-debug.apk
+          cd /tmp/pub
+          git init -q -b screenshots
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          echo "$GITHUB_SHA" > SOURCE
+          git add -A && git commit -qm "Screenshots + APK for $SHA"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screenshots
