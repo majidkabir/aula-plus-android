@@ -69,6 +69,7 @@ import com.majidkabir.aulaplus.ui.components.ChildFilterBar
 import com.majidkabir.aulaplus.ui.components.Dims
 import com.majidkabir.aulaplus.ui.components.EmptyState
 import com.majidkabir.aulaplus.ui.components.HtmlText
+import com.majidkabir.aulaplus.ui.components.IconTile
 import com.majidkabir.aulaplus.ui.components.Loading
 import com.majidkabir.aulaplus.ui.components.SectionTitle
 import com.majidkabir.aulaplus.ui.components.StaleBanner
@@ -392,18 +393,27 @@ fun VacationRequestsScreen() {
         onRefresh = { Repo.vacationRequests.refresh() }) {
         item { StaleBanner(Repo.vacationRequests.error, Repo.vacationRequests.savedAt) }
         if (list.isEmpty()) item { EmptyState(L.t("Ingen ferieanmodninger"), Icons.Filled.WbSunny) }
+        if (list.isNotEmpty()) item {
+            Text(L.t("Fortæl institutionen, om dit barn kommer i ferien."), style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
+        }
         list.forEach { r ->
             item {
-                Column(Modifier.card().clickable(enabled = r.isEditable) { answering = r }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(r.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        if (r.isMissingAnswer) Text(L.t("Mangler svar"), color = Color.White, style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.background(Color(0xFFFF3B30), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp))
+                Row(Modifier.card().clickable(enabled = r.isEditable) { answering = r }, verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    IconTile(Icons.Filled.WbSunny, Color(0xFFFF9500))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(r.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                            if (r.isMissingAnswer) Text(L.t("Mangler svar"), color = Color.White, style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.background(Color(0xFFFF3B30), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp))
+                        }
+                        Text("${r.childName} · ${AulaDate.dayMonth(r.startMs)} – ${AulaDate.dayMonth(r.endMs)}", style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        r.deadlineMs?.let { Text(L.t("Svarfrist %s", AulaDate.dayMonth(it)), style = MaterialTheme.typography.bodySmall,
+                            color = if (r.isMissingAnswer) Color(0xFFFF3B30) else MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
-                    Text("${r.childName} · ${AulaDate.dayMonth(r.startMs)} – ${AulaDate.dayMonth(r.endMs)}", style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    r.deadlineMs?.let { Text(L.t("Svarfrist %s", AulaDate.dayMonth(it)), style = MaterialTheme.typography.bodySmall,
-                        color = if (r.isMissingAnswer) Color(0xFFFF3B30) else MaterialTheme.colorScheme.onSurfaceVariant) }
+                    if (r.isEditable) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

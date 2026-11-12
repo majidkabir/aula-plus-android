@@ -163,6 +163,8 @@ object L {
         "Komme/gå, skema og beskeder for hvert barn." to "Check-in/out, schedule and messages for each child.",
         "Kommende" to "Coming up",
         "Kommentarer (%d)" to "Comments (%d)",
+        "Ingen kommentarer endnu" to "No comments yet",
+        "Fortæl institutionen, om dit barn kommer i ferien." to "Let the institution know whether your child is coming during the holiday.",
         "Kommer alle dage" to "Coming every day",
         "Kommer ikke" to "Not coming",
         "Kontakter" to "Contacts",

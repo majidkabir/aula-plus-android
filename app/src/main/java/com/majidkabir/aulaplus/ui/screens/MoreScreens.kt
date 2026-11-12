@@ -187,7 +187,8 @@ fun PostCard(p: Post, compact: Boolean, onClick: (() -> Unit)? = null) {
                 Text(L.t("Vigtigt"), color = Color(0xFFFF3B30), style = MaterialTheme.typography.labelMedium)
             }
         }
-        Text(p.title, style = MaterialTheme.typography.titleMedium, maxLines = if (compact) 2 else Int.MAX_VALUE)
+        Text(p.title, style = if (compact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+            maxLines = if (compact) 2 else Int.MAX_VALUE)
         if (compact) {
             Text(Html.plain(p.html), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3,
                 overflow = TextOverflow.Ellipsis)
@@ -231,6 +232,24 @@ fun PostDetailScreen(id: Int) {
         val p = post
         if (p == null) { item { Loading() }; return@AulaScreen }
         item { PostCard(p, false) }
+        error?.let { item { Text(it, color = Color(0xFFFF3B30)) } }
+        item { SectionTitle(L.t("Kommentarer (%d)", comments.size), Icons.AutoMirrored.Filled.Chat) }
+        if (comments.isEmpty()) item {
+            Text(L.t("Ingen kommentarer endnu"), style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
+        }
+        comments.forEach { c ->
+            item(key = "c${c.id}") {
+                Row(Modifier.card(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    InitialsAvatar(c.author, MaterialTheme.colorScheme.primary, 28.dp)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row { Text(c.author, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                            Text(AulaDate.listDate(c.dateMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        HtmlText(c.html)
+                    }
+                }
+            }
+        }
         if (p.canComment) item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(draft, { draft = it }, Modifier.weight(1f), placeholder = { Text(L.t("Skriv en kommentar")) },
@@ -250,19 +269,7 @@ fun PostDetailScreen(id: Int) {
                 }
             }
         }
-        error?.let { item { Text(it, color = Color(0xFFFF3B30)) } }
-        if (comments.isNotEmpty()) {
-            item { SectionTitle(L.t("Kommentarer (%d)", comments.size), Icons.AutoMirrored.Filled.Chat) }
-            comments.forEach { c ->
-                item(key = "c${c.id}") {
-                    Column(Modifier.card(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row { Text(c.author, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                            Text(AulaDate.listDate(c.dateMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        HtmlText(c.html)
-                    }
-                }
-            }
-        }
+
     }
 }
 
