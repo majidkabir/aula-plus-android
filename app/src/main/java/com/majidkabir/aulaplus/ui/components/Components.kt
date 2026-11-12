@@ -148,7 +148,11 @@ fun InitialsAvatar(name: String, color: Color = Color.Gray, size: Dp = 32.dp) {
     Box(
         Modifier.size(size).clip(CircleShape).background(Brush.linearGradient(listOf(color, color.copy(alpha = 0.75f)))),
         contentAlignment = Alignment.Center,
-    ) { Text(initials.ifEmpty { "?" }, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = (size.value * 0.38f).sp) }
+    ) {
+        // Sized to the circle, not the user's font scale, so initials never clip.
+        val scale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+        Text(initials.ifEmpty { "?" }, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = (size.value * 0.38f / scale).sp, maxLines = 1)
+    }
 }
 
 @Composable
