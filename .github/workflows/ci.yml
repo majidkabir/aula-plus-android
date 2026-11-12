@@ -24,11 +24,13 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - name: Build, test
-        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest 2>&1 | tee build.log | grep -E "^e: |error:|FAIL|BUILD|warning:.*aulaplus" | head -150
+        run: |
+          ./gradlew --no-daemon assembleDebug testDebugUnitTest 2>&1 | tee build.log | grep -E "^e: |error:|FAIL|BUILD|What went wrong" | head -150 || true
       - name: Fail if build failed
         run: grep -q "BUILD SUCCESSFUL" build.log
       - name: Screenshots (Paparazzi)
-        run: ./gradlew --no-daemon recordPaparazziDebug 2>&1 | tail -20
+        run: |
+          ./gradlew --no-daemon recordPaparazziDebug 2>&1 | tail -30
       - name: Publish screenshots + APK to branch
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
