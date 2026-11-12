@@ -20,9 +20,12 @@ object AulaDate {
 
     fun parse(s: String?): Long? {
         if (s.isNullOrBlank()) return null
-        runCatching { return OffsetDateTime.parse(s).toInstant().toEpochMilli() }
-        runCatching { return Instant.parse(s).toEpochMilli() }
-        val cleaned = s.replace(' ', 'T')
+        // "+0100" → "+01:00" so java.time accepts it (iOS' ISO8601DateFormatter takes both).
+        val iso = s.trim().replace(Regex("""([+-]\d{2})(\d{2})$"""), "$1:$2")
+        runCatching { return OffsetDateTime.parse(iso).toInstant().toEpochMilli() }
+        runCatching { return Instant.parse(iso).toEpochMilli() }
+        val cleaned = iso.replace(' ', 'T')
+        runCatching { return OffsetDateTime.parse(cleaned).toInstant().toEpochMilli() }
         runCatching { return LocalDateTime.parse(cleaned).atZone(copenhagen).toInstant().toEpochMilli() }
         runCatching { return LocalDate.parse(s.take(10)).atStartOfDay(copenhagen).toInstant().toEpochMilli() }
         return null

@@ -7,6 +7,12 @@ plugins {
 }
 
 android {
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+        textReport = true
+        textOutput = file("build/reports/lint.txt")
+    }
     namespace = "com.majidkabir.aulaplus"
     compileSdk = 35
 

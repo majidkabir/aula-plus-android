@@ -88,7 +88,7 @@ object AulaApi {
         }
         .build()
 
-    private var version: Int = 0
+    @Volatile private var version: Int = 0
         get() {
             if (field == 0) field = AulaApp.prefs.getInt("apiVersion", AulaConfig.DEFAULT_API_VERSION)
             return field
@@ -119,7 +119,8 @@ object AulaApi {
         withContext(Dispatchers.IO) {
             val token = TokenStore.accessToken()
             repeat(5) {
-                val url = "${AulaConfig.API_BASE}$version/".toHttpUrl().newBuilder()
+                val v = version
+                val url = "${AulaConfig.API_BASE}$v/".toHttpUrl().newBuilder()
                     .addQueryParameter("method", method)
                     .apply { query.forEach { (k, v) -> addQueryParameter(k, v) } }
                     .addQueryParameter("access_token", token)
@@ -132,8 +133,13 @@ object AulaApi {
                 }.build()
                 http.newCall(req).execute().use { resp ->
                     if (resp.code == 410) {
-                        version += 1
-                        AulaApp.prefs.edit().putInt("apiVersion", version).apply()
+                        // Parallel calls all see the 410; bump once, not once per call.
+                        synchronized(this@AulaApi) {
+                            if (version == v) {
+                                version = v + 1
+                                AulaApp.prefs.edit().putInt("apiVersion", version).apply()
+                            }
+                        }
                         return@repeat
                     }
                     val text = resp.body?.string().orEmpty()
@@ -247,7 +253,8 @@ object AulaApi {
     suspend fun presence(childIds: List<Int>): List<Presence> = coroutineScope {
         childIds.map { id ->
             async {
-                runCatching { call("presence.getDailyOverview", listOf("childIds[]" to id.toString())) }.getOrNull()
+                // A child without Komme/Gå (e.g. a school child) is rejected → no overview. Auth/network errors still surface.
+                try { call("presence.getDailyOverview", listOf("childIds[]" to id.toString())) } catch (e: AulaException) { null }
                     .objects().mapNotNull { d ->
                         val cid = d.obj("institutionProfile").int("id") ?: return@mapNotNull null
                         val loc = when (val l = d.el("location")) {
@@ -680,15 +687,24 @@ object AulaApi {
         return all
     }
 
-    suspend fun secureDocuments(guardianIds: List<Int>): List<SecureDocument> =
-        call("documents.getSecureDocuments", body = buildJsonObject {
-            put("index", 0); put("limit", 100)
-            putJsonArray("filterInstitutionProfileIds") { guardianIds.forEach { add(JsonPrimitive(it)) } }
-        }).asObj().objs("documents").mapNotNull { d ->
-            SecureDocument(d.int("id") ?: return@mapNotNull null, d.str("title") ?: L.t("Dokument"), d.str("category"),
-                (d.str("documentType") ?: "internal").contains("internal", true),
-                AulaDate.parse(d.str("updatedAt") ?: d.str("createdAt")), d.obj("creator").str("name"))
+    suspend fun secureDocuments(guardianIds: List<Int>): List<SecureDocument> {
+        val out = mutableListOf<SecureDocument>()
+        var index = 0
+        while (index < 500) {
+            val page = call("documents.getSecureDocuments", body = buildJsonObject {
+                put("index", index); put("limit", 50)
+                putJsonArray("filterInstitutionProfileIds") { guardianIds.forEach { add(JsonPrimitive(it)) } }
+            }).asObj().objs("documents")
+            out += page.mapNotNull { d ->
+                SecureDocument(d.int("id") ?: return@mapNotNull null, d.str("title") ?: L.t("Dokument"), d.str("category"),
+                    (d.str("documentType") ?: "internal").contains("internal", true),
+                    AulaDate.parse(d.str("updatedAt") ?: d.str("createdAt")), d.obj("creator").str("name"))
+            }
+            if (page.size < 50) break
+            index += page.size
         }
+        return out.distinctBy { it.id }
+    }
 
     suspend fun documentContent(doc: SecureDocument): DocumentContent {
         val d = call(if (doc.isInternal) "documents.getInternalSecureDocument" else "documents.getExternalSecureFile",

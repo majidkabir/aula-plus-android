@@ -31,6 +31,10 @@ jobs:
       - name: Screenshots (Paparazzi)
         run: |
           ./gradlew --no-daemon recordPaparazziDebug 2>&1 | tail -30
+      - name: Lint
+        run: |
+          ./gradlew --no-daemon lintDebug 2>&1 | tail -5
+          tail -3 app/build/reports/lint.txt || true
       - name: Publish screenshots + APK to branch
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
@@ -38,10 +42,14 @@ jobs:
           mkdir -p /tmp/pub
           cp app/src/test/snapshots/images/*.png /tmp/pub/ 2>/dev/null || true
           cp app/build/outputs/apk/debug/app-debug.apk /tmp/pub/aula-plus-debug.apk
+          cp app/build/reports/lint.txt /tmp/pub/lint.txt 2>/dev/null || true
+          # main → "screenshots" (the install link), pull requests → "screenshots-pr"
+          BRANCH=screenshots
+          [ "${{ github.event_name }}" = "pull_request" ] && BRANCH=screenshots-pr
           cd /tmp/pub
-          git init -q -b screenshots
+          git init -q -b $BRANCH
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           echo "$GITHUB_SHA" > SOURCE
           git add -A && git commit -qm "Screenshots + APK for $SHA"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screenshots
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" $BRANCH

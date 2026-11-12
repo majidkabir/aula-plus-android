@@ -136,15 +136,16 @@ private fun androidx.compose.foundation.layout.RowScope.TabItem(
     val selected = current == t.route || (current == null && AppState.tab == t)
     val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.4f
     NavigationBarItem(
-        alwaysShowLabel = !largeText,
+        alwaysShowLabel = true,
         selected = selected,
         onClick = { nav.tab(t) },
         icon = {
             BadgedBox(badge = { if (badge > 0) Badge { Text("$badge") } }) {
-                Icon(if (selected) on else off, null)
+                // With very large text there's no room for labels; the icon still carries the name for TalkBack.
+                Icon(if (selected) on else off, if (largeText) label else null)
             }
         },
-        label = { Text(label, maxLines = 1) },
+        label = if (largeText) null else ({ Text(label, maxLines = 1) }),
         colors = NavigationBarItemDefaults.colors(
             selectedIconColor = MaterialTheme.colorScheme.primary,
             selectedTextColor = MaterialTheme.colorScheme.primary,

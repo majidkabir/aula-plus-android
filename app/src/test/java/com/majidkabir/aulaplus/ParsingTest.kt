@@ -15,6 +15,12 @@ class ParsingTest {
         assertNotNull(AulaDate.parse("2026-03-01T09:00:00Z"))
         assertNotNull(AulaDate.parse("2026-03-01T09:00:00+01:00"))
         assertNotNull(AulaDate.parse("2026-03-01T09:00:00"))
+        val utc = AulaDate.parse("2026-03-01T08:00:00Z")
+        assertEquals(utc, AulaDate.parse("2026-03-01T09:00:00+01:00"))
+        assertEquals(utc, AulaDate.parse("2026-03-01T09:00:00+0100"))
+        assertEquals(utc, AulaDate.parse("2026-03-01 09:00:00+01:00"))
+        assertEquals(utc, AulaDate.parse("2026-03-01T09:00:00.000+01:00"))
+        assertEquals(utc, AulaDate.parse("2026-03-01T09:00:00")) // naive = Copenhagen time
         assertEquals("07:45", AulaDate.shortTime("07:45:00"))
         assertEquals(1771196400000L, AulaDate.parseDotNet("/Date(1771196400000-0000)/"))
     }

@@ -1,5 +1,7 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.foundation.background
@@ -219,6 +221,7 @@ fun pickDate(ctx: android.content.Context, current: LocalDate, min: LocalDate, o
         .apply { datePicker.minDate = AulaDate.startOfDayMs(min) }.show()
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DayPlanDialog(plan: DayPlan, childId: Int, done: (Boolean) -> Unit) {
     val ctx = LocalContext.current
@@ -242,15 +245,12 @@ fun DayPlanDialog(plan: DayPlan, childId: Int, done: (Boolean) -> Unit) {
                     OutlinedButton(onClick = { pickTime(ctx, exit) { exit = it } }, Modifier.weight(1f)) { Text(L.t("Hentes") + " $exit") }
                 }
                 Text(L.t("Hvordan"), style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    PickupKind.entries.take(2).forEach { k -> FilterChip(kind == k, { kind = k }, { Text(k.label) }) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    PickupKind.entries.drop(2).forEach { k -> FilterChip(kind == k, { kind = k }, { Text(k.label) }) }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    PickupKind.entries.forEach { k -> FilterChip(kind == k, { kind = k }, { Text(k.label) }) }
                 }
                 if (kind.needsName) {
-                    if (names.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        names.take(3).forEach { n -> FilterChip(who == n, { who = n }, { Text(n, maxLines = 1) }) }
+                    if (names.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        names.take(6).forEach { n -> FilterChip(who == n, { who = n }, { Text(n, maxLines = 1) }) }
                     }
                     OutlinedTextField(who, { who = it }, label = { Text(L.t("Navn (fx Mor)")) }, singleLine = true)
                 }
@@ -285,6 +285,7 @@ fun VacationDialog(childIds: List<Int>, done: (Boolean) -> Unit) {
     var comment by remember { mutableStateOf("") }
     var all by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = { done(false) },
         title = { Text(L.t("Ferie/fri")) },
@@ -307,10 +308,12 @@ fun VacationDialog(childIds: List<Int>, done: (Boolean) -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(enabled = !saving, onClick = {
                 scope.launch {
+                    saving = true
                     runCatching { AulaApi.addVacation(if (all) AppState.children.map { it.id } else childIds, from, to, comment) }
                         .onSuccess { done(true) }.onFailure { error = L.t("Ikke gemt: %s", it.message ?: "") }
+                    saving = false
                 }
             }) { Text(L.t("Meld")) }
         },
@@ -346,7 +349,7 @@ fun WeekPlanScreen() {
         }
         if (!supported && Repo.session.value != null && visibleTasks.isEmpty()) {
             item { EmptyState(L.t("Ugeplan ikke understøttet endnu"), Icons.Outlined.Description,
-                L.t("Din skole bruger en ugeplan-udbyder, som Aula+ ikke kender endnu (understøtter Meebook og Min Uddannelse).")) }
+                subtitle = L.t("Din skole bruger en ugeplan-udbyder, som Aula+ ikke kender endnu (understøtter Meebook og Min Uddannelse).")) }
         } else if (plans.all { it.sections.isEmpty() }) {
             item { if (plan.isLoading) Loading() else EmptyState(L.t("Ingen ugeplan for denne uge"), Icons.Outlined.Description) }
         }

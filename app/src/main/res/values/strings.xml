@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Aula+</string>
+    <string name="app_name" translatable="false">Aula+</string>
     <string name="widget_description">Børnenes status i dag og ulæste beskeder.</string>
 </resources>
