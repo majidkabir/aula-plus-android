@@ -88,7 +88,7 @@ object AulaApi {
         }
         .build()
 
-    private var version: Int = 0
+    @Volatile private var version: Int = 0
         get() {
             if (field == 0) field = AulaApp.prefs.getInt("apiVersion", AulaConfig.DEFAULT_API_VERSION)
             return field
@@ -119,7 +119,8 @@ object AulaApi {
         withContext(Dispatchers.IO) {
             val token = TokenStore.accessToken()
             repeat(5) {
-                val url = "${AulaConfig.API_BASE}$version/".toHttpUrl().newBuilder()
+                val v = version
+                val url = "${AulaConfig.API_BASE}$v/".toHttpUrl().newBuilder()
                     .addQueryParameter("method", method)
                     .apply { query.forEach { (k, v) -> addQueryParameter(k, v) } }
                     .addQueryParameter("access_token", token)
@@ -132,8 +133,13 @@ object AulaApi {
                 }.build()
                 http.newCall(req).execute().use { resp ->
                     if (resp.code == 410) {
-                        version += 1
-                        AulaApp.prefs.edit().putInt("apiVersion", version).apply()
+                        // Parallel calls all see the 410; bump once, not once per call.
+                        synchronized(this@AulaApi) {
+                            if (version == v) {
+                                version = v + 1
+                                AulaApp.prefs.edit().putInt("apiVersion", version).apply()
+                            }
+                        }
                         return@repeat
                     }
                     val text = resp.body?.string().orEmpty()
