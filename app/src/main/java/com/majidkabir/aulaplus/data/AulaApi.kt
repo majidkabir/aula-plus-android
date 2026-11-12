@@ -549,7 +549,10 @@ object AulaApi {
         call("posts.getAllPosts", listOf("parent" to "profile", "index" to "0", "limit" to "20") + ids(profileIds, "institutionProfileIds[]"))
             .asObj().objs("posts").mapNotNull(::post)
 
-    suspend fun post(id: Int): Post? = post(call("posts.getById", listOf("id" to "$id")).asObj() ?: return null)
+    suspend fun post(id: Int): Post? {
+        val o = call("posts.getById", listOf("id" to "$id")).asObj() ?: return null
+        return post(o)
+    }
 
     suspend fun comments(postId: Int): List<Comment> {
         val d = call("comments.getComments", listOf("ParentType" to "Post", "ParentId" to "$postId", "Limit" to "100"))
