@@ -339,7 +339,7 @@ object AulaApi {
     suspend fun pickupNames(childId: Int): List<String> {
         val out = mutableListOf<String>()
         for (item in call("presence.getPickupResponsibles", listOf("uniStudentIds[]" to childId.toString())).objects()) {
-            item.int("uniStudentId")?.let { if (it != childId) continue }
+            if (item.int("uniStudentId")?.let { it != childId } == true) continue
             for (p in item.objs("relatedPersons")) {
                 val n = p.str("name") ?: continue
                 out += p.str("relation")?.let { "$n ($it)" } ?: n
