@@ -566,14 +566,19 @@ fun SettingsScreen() {
                     else { notificationsOn = on; RefreshWorker.setEnabled(ctx, on) }
                 }
                 ToggleRow(L.t("Lås med fingeraftryk"), Icons.Filled.Fingerprint, Color(0xFF34C759), lockOn) { lockOn = it; AppState.lockEnabled = it }
-                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    IconTile(Icons.Filled.Language, Color(0xFF007AFF))
-                    Text(L.t("Sprog"), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    listOf("" to L.t("Automatisk"), "da" to "Dansk", "en" to "English").forEach { (k, label) ->
-                        TextButton(onClick = {
-                            L.override = k
-                            if (AulaApp.isReady) AulaApp.prefs.edit().putString("lang", k).apply()
-                        }) { Text(label, color = if (L.override == k) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        IconTile(Icons.Filled.Language, Color(0xFF007AFF))
+                        Text(L.t("Sprog"), style = MaterialTheme.typography.bodyLarge)
+                    }
+                    val langs = listOf("" to L.t("Automatisk"), "da" to "Dansk", "en" to "English")
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        langs.forEachIndexed { i, (k, label) ->
+                            SegmentedButton(L.override == k, {
+                                L.override = k
+                                if (AulaApp.isReady) AulaApp.prefs.edit().putString("lang", k).apply()
+                            }, SegmentedButtonDefaults.itemShape(i, langs.size)) { Text(label, maxLines = 1) }
+                        }
                     }
                 }
             }

@@ -134,7 +134,9 @@ private fun androidx.compose.foundation.layout.RowScope.TabItem(
     nav: Nav, current: String?, t: Tab, label: String, on: ImageVector, off: ImageVector, badge: Int = 0,
 ) {
     val selected = current == t.route || (current == null && AppState.tab == t)
+    val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.4f
     NavigationBarItem(
+        alwaysShowLabel = !largeText,
         selected = selected,
         onClick = { nav.tab(t) },
         icon = {

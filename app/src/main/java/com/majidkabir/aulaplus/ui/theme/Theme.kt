@@ -120,7 +120,13 @@ fun AulaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> 
             primaryContainer = t.brandLight.copy(alpha = 0.14f), onPrimaryContainer = t.brandLight,
         )
     }
-    MaterialTheme(colorScheme = scheme, typography = AppTypography, content = content)
+    MaterialTheme(colorScheme = scheme, typography = AppTypography) {
+        // Default text/icon colour for content drawn straight on the background.
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.material3.LocalContentColor provides scheme.onBackground,
+            content = content,
+        )
+    }
 }
 
 val Body = TextStyle(fontSize = 16.sp)

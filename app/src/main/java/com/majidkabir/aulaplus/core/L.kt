@@ -28,6 +28,13 @@ object L {
     }
 
     private val en: Map<String, String> = mapOf(
+        "Lås med fingeraftryk" to "Lock with fingerprint",
+        "Ingen dokumenter" to "No documents",
+        "Ingen filer" to "No files",
+        "%d billeder" to "%d photos",
+        "%s er meldt syg." to "%s is reported sick.",
+        "Ingen forbindelse til Aula." to "No connection to Aula.",
+        "Aula+ tjekker for nyt i baggrunden, når Android tillader det (typisk hvert 15.–60. minut)." to "Aula+ checks for new items in the background when Android allows it (usually every 15–60 minutes).",
         "%d af %d færdige" to "%d of %d done",
         "%d afsluttet" to "%d done",
         "%d begivenheder" to "%d events",
