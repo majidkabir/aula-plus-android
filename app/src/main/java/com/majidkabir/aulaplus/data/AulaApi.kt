@@ -339,6 +339,7 @@ object AulaApi {
     suspend fun pickupNames(childId: Int): List<String> {
         val out = mutableListOf<String>()
         for (item in call("presence.getPickupResponsibles", listOf("uniStudentIds[]" to childId.toString())).objects()) {
+            if (item.int("uniStudentId")?.let { it != childId } == true) continue
             for (p in item.objs("relatedPersons")) {
                 val n = p.str("name") ?: continue
                 out += p.str("relation")?.let { "$n ($it)" } ?: n
@@ -726,10 +727,14 @@ object AulaApi {
 
     // endregion
 
+    /** Deletes downloaded attachments (they can be sensitive documents). */
+    fun clearDownloads() { runCatching { File(AulaApp.context.cacheDir, "attachments").deleteRecursively() } }
+
     /** Downloads a file with the Aula session to the cache dir. */
     suspend fun download(url: String, name: String): File = withContext(Dispatchers.IO) {
         val dir = File(AulaApp.context.cacheDir, "attachments").apply { mkdirs() }
-        val file = File(dir, name.replace('/', '_'))
+        val safe = name.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_").trim().trimStart('.').take(120).ifEmpty { "fil" }
+        val file = File(dir, safe)
         http.newCall(Request.Builder().url(url).build()).execute().use { resp ->
             if (!resp.isSuccessful) throw AulaException.Http(resp.code)
             file.outputStream().use { out -> resp.body?.byteStream()?.copyTo(out) }

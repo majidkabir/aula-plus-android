@@ -24,11 +24,26 @@ object L {
 
     fun t(key: String, vararg args: Any): String {
         val template = if (isEnglish) en[key] ?: key else key
-        return if (args.isEmpty()) template else String.format(locale, template, *args)
+        if (args.isEmpty()) return template
+        // A bad template must never crash the UI.
+        return runCatching { String.format(locale, template, *args) }.getOrElse { template }
     }
 
     private val en: Map<String, String> = mapOf(
         "Lås med fingeraftryk" to "Lock with fingerprint",
+        "Fysisk placering" to "Physical placement",
+        "Aula login fejlede (HTTP %d)." to "Aula login failed (HTTP %d).",
+        "Du er ikke logget ind." to "You are not logged in.",
+        "Cache ryddet." to "Cache cleared.",
+        "Telefonen har ingen skærmlås eller fingeraftryk sat op." to "This phone has no screen lock or fingerprint set up.",
+        "Tillad notifikationer for Aula+ i Androids indstillinger." to "Allow notifications for Aula+ in Android settings.",
+        "Ingen app kan åbne dette." to "No app can open this.",
+        "Ikke slettet: %s" to "Not deleted: %s",
+        "Ingen billeder" to "No photos",
+        "Gem eller del" to "Save or share",
+        "Luk" to "Close",
+        "Afspil video" to "Play video",
+        "Begivenheden kunne ikke hentes: %s" to "Couldn't load the event: %s",
         "Ingen dokumenter" to "No documents",
         "Ingen filer" to "No files",
         "%d billeder" to "%d photos",

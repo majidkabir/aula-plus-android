@@ -52,6 +52,8 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
             }
             prefs.edit().putStringSet("seenPosts", posts.map { "${it.id}" }.toSet()).apply()
         }
+        // Keeps the home-screen widget's status lines current.
+        runCatching { Repo.presence.replace(AulaApi.presence(AulaApi.bootstrap().children.map { it.id })) }
         return Result.success()
     }
 

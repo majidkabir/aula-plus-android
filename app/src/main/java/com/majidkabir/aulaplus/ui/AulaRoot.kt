@@ -87,7 +87,11 @@ fun MainNav(startRoute: String = AppState.tab.route) {
     val controller = rememberNavController()
     val nav = Nav(controller)
     LaunchedEffect(AppState.pendingRoute) {
-        AppState.pendingRoute?.let { nav.open(it); AppState.pendingRoute = null }
+        AppState.pendingRoute?.let { route ->
+            AppState.pendingRoute = null
+            // Only our own notification routes; anything else (or a stale id) must not crash the app.
+            if (Regex("""(thread/\d+|post/\d+|album/\d+|vacations|notifications)""").matches(route)) runCatching { nav.open(route) }
+        }
     }
     CompositionLocalProvider(LocalNav provides nav) {
         NavHost(controller, startDestination = startRoute) {

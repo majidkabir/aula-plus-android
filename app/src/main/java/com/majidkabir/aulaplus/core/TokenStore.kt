@@ -19,8 +19,8 @@ data class Tokens(val accessToken: String, val refreshToken: String?, val expire
     val expiringSoon: Boolean get() = expiresAt - System.currentTimeMillis() < 60_000
 }
 
-class NotLoggedInException : Exception("Du er ikke logget ind.")
-class TokenEndpointException(val code: Int) : Exception("Aula login fejlede (HTTP $code).")
+class NotLoggedInException : Exception(L.t("Du er ikke logget ind."))
+class TokenEndpointException(val code: Int) : Exception(L.t("Aula login fejlede (HTTP %d).", code))
 
 /** OIDC tokens in EncryptedSharedPreferences with coalesced refresh. */
 object TokenStore {

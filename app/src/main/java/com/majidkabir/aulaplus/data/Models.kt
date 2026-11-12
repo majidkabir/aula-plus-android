@@ -105,7 +105,14 @@ data class Event(
     val hasSubstitute: Boolean = false,
     val type: String? = null,
     val childIds: List<Int> = emptyList(),
-)
+) {
+    /** True on every day the event covers (multi-day holidays too; an all-day end at midnight is exclusive). */
+    fun occursOn(d: java.time.LocalDate): Boolean {
+        val first = com.majidkabir.aulaplus.core.AulaDate.localDate(startMs)
+        val last = com.majidkabir.aulaplus.core.AulaDate.localDate(maxOf(startMs, endMs - 1))
+        return !d.isBefore(first) && !d.isAfter(last)
+    }
+}
 
 @Serializable
 data class Post(

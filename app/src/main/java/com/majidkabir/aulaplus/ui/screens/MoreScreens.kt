@@ -1,5 +1,7 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import android.widget.Toast
+import androidx.compose.material.icons.filled.PlayCircle
 import com.majidkabir.aulaplus.data.Demo
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -115,6 +117,7 @@ import com.majidkabir.aulaplus.ui.components.Loading
 import com.majidkabir.aulaplus.ui.components.SectionTitle
 import com.majidkabir.aulaplus.ui.components.StaleBanner
 import com.majidkabir.aulaplus.ui.components.card
+import com.majidkabir.aulaplus.ui.components.openSafely
 import com.majidkabir.aulaplus.ui.theme.AppTheme
 import com.majidkabir.aulaplus.ui.theme.ThemeStore
 import com.majidkabir.aulaplus.work.RefreshWorker
@@ -313,26 +316,31 @@ fun GalleryScreen() {
 @Composable
 fun AlbumScreen(albumId: Int) {
     val nav = LocalNav.current
-    val ctx = LocalContext.current
     val media = Repo.media(albumId)
     LaunchedEffect(albumId) { media.load(3600) }
     val title = Repo.albums.value?.firstOrNull { it.id == albumId }?.title ?: L.t("Galleri")
+    val all = media.value ?: emptyList()
+    var viewing by remember { mutableStateOf<Int?>(null) }
     AulaScreen(title = title, onBack = { nav.back() }, refreshing = media.isLoading, onRefresh = { media.refresh() }, spacing = 3.dp) {
-        if (media.value == null && media.isLoading) item { Loading() }
-        (media.value ?: emptyList()).chunked(3).forEach { row ->
+        item { StaleBanner(media.error, media.savedAt) }
+        if (all.isEmpty()) item { if (media.isLoading || media.value == null) Loading() else EmptyState(L.t("Ingen billeder"), Icons.Filled.PhotoLibrary) }
+        all.chunked(3).forEach { row ->
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     row.forEach { m ->
-                        AsyncImage(m.thumbUrl, null, Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(6.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { (m.fullUrl ?: m.thumbUrl)?.let { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } },
-                            contentScale = ContentScale.Crop)
+                        Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant).clickable { viewing = all.indexOf(m) },
+                            contentAlignment = Alignment.Center) {
+                            AsyncImage(m.thumbUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            if (m.isVideo) Icon(Icons.Filled.PlayCircle, L.t("Afspil video"), tint = Color.White, modifier = Modifier.size(32.dp))
+                        }
                     }
                     repeat(3 - row.size) { Box(Modifier.weight(1f)) }
                 }
             }
         }
     }
+    viewing?.let { MediaViewer(all, it) { viewing = null } }
 }
 
 private fun notificationLook(n: AulaNotification): Pair<ImageVector, Color> {
@@ -442,11 +450,11 @@ fun ContactsScreen() {
                             c.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2) }
                         }
                         c.phones.firstOrNull()?.let { ph ->
-                            IconButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + ph.filter { it.isDigit() || it == '+' }))) },
+                            IconButton(onClick = { ctx.openSafely(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + ph.filter { it.isDigit() || it == '+' }))) },
                                 modifier = Modifier.semantics { contentDescription = ph }) { Icon(Icons.Filled.Call, null, tint = MaterialTheme.colorScheme.primary) }
                         }
                         c.email?.let { em ->
-                            IconButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$em"))) },
+                            IconButton(onClick = { ctx.openSafely(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$em"))) },
                                 modifier = Modifier.semantics { contentDescription = em }) { Icon(Icons.Filled.Email, null, tint = MaterialTheme.colorScheme.primary) }
                         }
                         IconButton(onClick = {
@@ -555,6 +563,7 @@ fun SettingsScreen() {
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         notificationsOn = granted
         RefreshWorker.setEnabled(ctx, granted)
+        if (!granted) Toast.makeText(ctx, L.t("Tillad notifikationer for Aula+ i Androids indstillinger."), Toast.LENGTH_LONG).show()
     }
     AulaScreen(title = L.t("Profil"), onBack = { nav.back() }, spacing = 20.dp) {
         if (s != null) item {
@@ -582,7 +591,13 @@ fun SettingsScreen() {
                     if (on && Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
                     else { notificationsOn = on; RefreshWorker.setEnabled(ctx, on) }
                 }
-                ToggleRow(L.t("Lås med fingeraftryk"), Icons.Filled.Fingerprint, Color(0xFF34C759), lockOn) { lockOn = it; AppState.lockEnabled = it }
+                ToggleRow(L.t("Lås med fingeraftryk"), Icons.Filled.Fingerprint, Color(0xFF34C759), lockOn) { on ->
+                    val auth = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                        androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    if (on && androidx.biometric.BiometricManager.from(ctx).canAuthenticate(auth) != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
+                        Toast.makeText(ctx, L.t("Telefonen har ingen skærmlås eller fingeraftryk sat op."), Toast.LENGTH_LONG).show()
+                    } else { lockOn = on; AppState.lockEnabled = on }
+                }
                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         IconTile(Icons.Filled.Language, Color(0xFF007AFF))
@@ -606,7 +621,11 @@ fun SettingsScreen() {
         }
         item {
             MenuGroup(null) {
-                TextButton(onClick = { com.majidkabir.aulaplus.data.DiskCache.clear() }, Modifier.fillMaxWidth()) { Text(L.t("Ryd cache")) }
+                TextButton(onClick = {
+                    com.majidkabir.aulaplus.data.DiskCache.clear()
+                    AulaApi.clearDownloads()
+                    Toast.makeText(ctx, L.t("Cache ryddet."), Toast.LENGTH_SHORT).show()
+                }, Modifier.fillMaxWidth()) { Text(L.t("Ryd cache")) }
                 TextButton(onClick = { confirmLogout = true }, Modifier.fillMaxWidth()) { Text(L.t("Log ud"), color = Color(0xFFFF3B30)) }
             }
         }

@@ -275,6 +275,11 @@ private fun trimTrailing(s: AnnotatedString): AnnotatedString {
     return if (end == s.length) s else s.subSequence(0, end)
 }
 
+/** Starts another app; shows a short message instead of crashing when nothing can handle it. */
+fun android.content.Context.openSafely(intent: Intent) {
+    runCatching { startActivity(intent) }.onFailure { Toast.makeText(this, L.t("Ingen app kan åbne dette."), Toast.LENGTH_SHORT).show() }
+}
+
 /** Attachments: files open with the phone's viewer (downloaded with the Aula session), links in the browser. */
 @Composable
 fun AttachmentList(attachments: List<Attachment>, modifier: Modifier = Modifier) {
@@ -297,7 +302,7 @@ fun AttachmentList(attachments: List<Attachment>, modifier: Modifier = Modifier)
                     .clickable(enabled = a.url != null && busy == null) {
                         val url = a.url ?: return@clickable
                         if (a.isLink) {
-                            ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                            ctx.openSafely(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                             return@clickable
                         }
                         busy = a

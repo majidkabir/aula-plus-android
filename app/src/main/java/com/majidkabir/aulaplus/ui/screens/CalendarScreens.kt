@@ -81,6 +81,7 @@ import com.majidkabir.aulaplus.ui.components.SectionTitle
 import com.majidkabir.aulaplus.ui.components.StaleBanner
 import com.majidkabir.aulaplus.ui.components.WeekSwitcher
 import com.majidkabir.aulaplus.ui.components.card
+import com.majidkabir.aulaplus.ui.components.openSafely
 import com.majidkabir.aulaplus.ui.components.childColor
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -95,7 +96,7 @@ fun CalendarScreen() {
     val selected = AppState.selectedChildId
     fun matches(e: Event) = selected == null || e.childIds.isEmpty() || selected in e.childIds
     val all = (week.value ?: emptyList()).filter(::matches)
-    val dayEvents = all.filter { AulaDate.localDate(it.startMs) == day }
+    val dayEvents = all.filter { it.occursOn(day) }.sortedWith(compareByDescending<Event> { it.allDay }.thenBy { it.startMs })
     val isToday = day == AulaDate.today()
     val now = System.currentTimeMillis()
 
@@ -125,7 +126,7 @@ fun CalendarScreen() {
         if (dayEvents.isEmpty()) {
             item { if (week.isLoading && week.value == null) Loading() else EmptyState(L.t("Intet i kalenderen"), Icons.Filled.CalendarMonth, subtitle = L.t("Der er ingen begivenheder denne dag.")) }
         }
-        val firstUpcoming = dayEvents.indexOfFirst { it.startMs > now }.let { if (it < 0) dayEvents.size else it }
+        val firstUpcoming = dayEvents.indexOfFirst { !it.allDay && it.startMs > now }.let { if (it < 0) dayEvents.size else it }
         dayEvents.forEachIndexed { i, e ->
             if (isToday && i == firstUpcoming) item(key = "now") { NowLine() }
             item(key = e.id) { EventCard(e) { nav.open("event/" + NavCache.put("event-${e.id}", e)) } }
@@ -150,7 +151,7 @@ private fun DayStrip(selected: LocalDate, events: List<Event>, onSelect: (LocalD
         (0L until 7L).map { start.plusDays(it) }.forEach { d ->
             val isSel = d == selected
             val isToday = d == AulaDate.today()
-            val count = events.count { AulaDate.localDate(it.startMs) == d }
+            val count = events.count { it.occursOn(d) }
             val primary = MaterialTheme.colorScheme.primary
             val onPrimary = MaterialTheme.colorScheme.onPrimary
             Column(
@@ -230,7 +231,7 @@ fun EventCard(e: Event, onClick: () -> Unit) {
 
 fun addToCalendar(ctx: android.content.Context, e: Event) {
     val names = e.childIds.mapNotNull { AppState.child(it)?.firstName }
-    ctx.startActivity(Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
+    ctx.openSafely(Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
         .putExtra(CalendarContract.Events.TITLE, if (names.isEmpty()) e.title else "${e.title} (${names.joinToString()})")
         .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, e.startMs)
         .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, if (e.endMs > e.startMs) e.endMs else e.startMs + 3_600_000)
@@ -245,11 +246,20 @@ fun EventDetailScreen(key: String) {
     val nav = LocalNav.current
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    val event = NavCache.items[key] as? Event ?: return
+    val event = NavCache.items[key] as? Event ?: run {
+        // The app was restarted on this screen: the event is no longer in memory.
+        AulaScreen(title = L.t("Begivenhed"), onBack = { nav.back() }) { item { EmptyState(L.t("Intet i kalenderen"), Icons.Filled.CalendarMonth) } }
+        return
+    }
     var detail by remember { mutableStateOf<EventDetail?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    suspend fun load() { runCatching { AulaApi.eventDetail(event.id) }.onSuccess { detail = it; error = null } }
+    suspend fun load() {
+        runCatching { AulaApi.eventDetail(event.id) }
+            .onSuccess { detail = it; error = null }
+            // Lessons often have no detail page; only complain when there is nothing else to show.
+            .onFailure { if (event.type != "lesson") error = L.t("Begivenheden kunne ikke hentes: %s", it.message ?: "") }
+    }
     LaunchedEffect(event.id) { load() }
     val myIds = (Repo.session.value?.guardianProfileIds ?: emptyList()) + AppState.children.map { it.id }
     val mine = detail?.invitees?.filter { it.institutionProfileId in myIds } ?: emptyList()

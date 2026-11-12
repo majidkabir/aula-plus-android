@@ -49,7 +49,8 @@ fun DayTimeline(presence: Presence?, events: List<Event>, color: Color, modifier
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val stayStart = minutes(presence?.checkIn ?: presence?.plannedEntry)
     val stayEnd = minutes(presence?.checkOut ?: presence?.plannedExit)
-    val todays = events.filter { AulaDate.isToday(it.startMs) }
+    // Timed events that start and end today; all-day and multi-day ones have no place on a clock axis.
+    val todays = events.filter { !it.allDay && AulaDate.isToday(it.startMs) && AulaDate.isToday(it.endMs) }
     val starts = todays.map { minutesOf(it.startMs) } + listOfNotNull(stayStart)
     val ends = todays.map { minutesOf(it.endMs) } + listOfNotNull(stayEnd)
     val lo = (minOf(starts.minOrNull() ?: 480, 480) / 60) * 60
@@ -135,15 +136,18 @@ fun WeekPlanChart(plans: List<DayPlan>, days: List<LocalDate>, color: Color, mod
             val label = measurer.measure(AulaDate.weekdayShort(d), TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = labelColor))
             drawText(label, topLeft = Offset(0f, cy - label.size.height / 2))
             val barH = 14.dp.toPx()
-            val (s, e) = range
+            val (rawS, e) = range
+            // Keep bars inside the 06–19 axis even for unusual times; the label still shows the real time.
+            val s = rawS.coerceIn(lo, hi)
+            val barEnd = e.coerceIn(s, hi)
             drawRoundRect(
                 if (vacation) Brush.horizontalGradient(listOf(Color(0x66FF9500), Color(0x66FF9500)))
                 else Brush.horizontalGradient(listOf(color.copy(alpha = 0.8f), color)),
-                Offset(x(s), cy - barH / 2), Size(x(e) - x(s), barH), CornerRadius(barH / 2),
+                Offset(x(s), cy - barH / 2), Size((x(barEnd) - x(s)).coerceAtLeast(barH), barH), CornerRadius(barH / 2),
             )
             val end = measurer.measure(if (vacation) L.t("Fri") else "%02d:%02d".format(e / 60, e % 60),
                 TextStyle(fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = axisColor))
-            drawText(end, topLeft = Offset(x(e) + 4.dp.toPx(), cy - end.size.height / 2))
+            drawText(end, topLeft = Offset((x(barEnd) + 4.dp.toPx()).coerceAtMost(size.width - end.size.width), cy - end.size.height / 2))
         }
     }
 }

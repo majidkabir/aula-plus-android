@@ -25,8 +25,21 @@ class ParsingTest {
         assertEquals(1771196400000L, AulaDate.parseDotNet("/Date(1771196400000-0000)/"))
     }
 
+    @Test fun multiDayEvents() {
+        val start = AulaDate.parse("2026-12-21T00:00:00")!!
+        val holiday = com.majidkabir.aulaplus.data.Event("h", "Juleferie", start, AulaDate.parse("2026-12-24T00:00:00")!!, allDay = true)
+        assertEquals(true, holiday.occursOn(java.time.LocalDate.of(2026, 12, 23)))
+        assertEquals(false, holiday.occursOn(java.time.LocalDate.of(2026, 12, 24))) // all-day end is exclusive
+        val lesson = com.majidkabir.aulaplus.data.Event("l", "Dansk", AulaDate.parse("2026-12-21T08:00:00")!!, AulaDate.parse("2026-12-21T08:45:00")!!)
+        assertEquals(true, lesson.occursOn(java.time.LocalDate.of(2026, 12, 21)))
+        assertEquals(false, lesson.occursOn(java.time.LocalDate.of(2026, 12, 22)))
+    }
+
     @Test fun html() {
         assertEquals("Husk madpakke i morgen", Html.plain("<p>Husk <b>madpakke</b>&nbsp;i morgen</p>"))
+        assertEquals("don’t – ok", Html.plain("don&#8217;t &#x2013; ok"))
+        assertEquals("&lt;b&gt; & æ", Html.decode("&amp;lt;b&amp;gt; &amp; &aelig;"))
+        assertEquals("&unknown;", Html.decode("&unknown;"))
         assertEquals("<p>Hej &lt;3<br>fra os</p><p>Tak &amp; hilsen</p>", Html.fromPlain("Hej <3\nfra os\n\nTak & hilsen"))
     }
 }
