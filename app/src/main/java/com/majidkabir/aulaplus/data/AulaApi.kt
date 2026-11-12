@@ -247,7 +247,8 @@ object AulaApi {
     suspend fun presence(childIds: List<Int>): List<Presence> = coroutineScope {
         childIds.map { id ->
             async {
-                runCatching { call("presence.getDailyOverview", listOf("childIds[]" to id.toString())) }.getOrNull()
+                // A child without Komme/Gå (e.g. a school child) is rejected → no overview. Auth/network errors still surface.
+                try { call("presence.getDailyOverview", listOf("childIds[]" to id.toString())) } catch (e: AulaException) { null }
                     .objects().mapNotNull { d ->
                         val cid = d.obj("institutionProfile").int("id") ?: return@mapNotNull null
                         val loc = when (val l = d.el("location")) {
@@ -680,15 +681,24 @@ object AulaApi {
         return all
     }
 
-    suspend fun secureDocuments(guardianIds: List<Int>): List<SecureDocument> =
-        call("documents.getSecureDocuments", body = buildJsonObject {
-            put("index", 0); put("limit", 100)
-            putJsonArray("filterInstitutionProfileIds") { guardianIds.forEach { add(JsonPrimitive(it)) } }
-        }).asObj().objs("documents").mapNotNull { d ->
-            SecureDocument(d.int("id") ?: return@mapNotNull null, d.str("title") ?: L.t("Dokument"), d.str("category"),
-                (d.str("documentType") ?: "internal").contains("internal", true),
-                AulaDate.parse(d.str("updatedAt") ?: d.str("createdAt")), d.obj("creator").str("name"))
+    suspend fun secureDocuments(guardianIds: List<Int>): List<SecureDocument> {
+        val out = mutableListOf<SecureDocument>()
+        var index = 0
+        while (index < 500) {
+            val page = call("documents.getSecureDocuments", body = buildJsonObject {
+                put("index", index); put("limit", 50)
+                putJsonArray("filterInstitutionProfileIds") { guardianIds.forEach { add(JsonPrimitive(it)) } }
+            }).asObj().objs("documents")
+            out += page.mapNotNull { d ->
+                SecureDocument(d.int("id") ?: return@mapNotNull null, d.str("title") ?: L.t("Dokument"), d.str("category"),
+                    (d.str("documentType") ?: "internal").contains("internal", true),
+                    AulaDate.parse(d.str("updatedAt") ?: d.str("createdAt")), d.obj("creator").str("name"))
+            }
+            if (page.size < 50) break
+            index += page.size
         }
+        return out.distinctBy { it.id }
+    }
 
     suspend fun documentContent(doc: SecureDocument): DocumentContent {
         val d = call(if (doc.isInternal) "documents.getInternalSecureDocument" else "documents.getExternalSecureFile",

@@ -1,5 +1,8 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.data.Demo
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -397,8 +400,10 @@ fun ContactsScreen() {
     var filter by remember { mutableStateOf("guardian") }
     var search by remember { mutableStateOf("") }
     var loadable by remember { mutableStateOf<Loadable<List<Contact>>?>(null) }
+    var groupsLoaded by remember { mutableStateOf(Demo.isOn) }
     LaunchedEffect(Unit) {
         groups = runCatching { AulaApi.groups(AppState.children.map { it.id }) }.getOrDefault(emptyList())
+        groupsLoaded = true
         if (groupId == null) groupId = groups.firstOrNull()?.id
     }
     LaunchedEffect(groupId, filter) {
@@ -409,8 +414,8 @@ fun ContactsScreen() {
     val shown = (loadable?.value ?: emptyList()).filter { search.isBlank() || it.name.contains(search, true) || (it.detail ?: "").contains(search, true) }
     AulaScreen(title = L.t("Kontakter"), onBack = { nav.back() }, large = true) {
         if (groups.size > 1) item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                groups.take(3).forEach { g ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                groups.forEach { g ->
                     androidx.compose.material3.FilterChip(groupId == g.id, { groupId = g.id }, { Text(g.name, maxLines = 1) })
                 }
             }
@@ -424,7 +429,8 @@ fun ContactsScreen() {
         }
         item { SearchField(search, L.t("Søg navn")) { search = it } }
         loadable?.let { l -> item { StaleBanner(l.error, l.savedAt) } }
-        if (shown.isEmpty()) item { if (loadable?.isLoading != false) Loading() else EmptyState(L.t("Ingen kontakter"), Icons.Filled.People) }
+        val waiting = !groupsLoaded || (groups.isNotEmpty() && (loadable == null || loadable?.isLoading == true))
+        if (shown.isEmpty()) item { if (waiting) Loading() else EmptyState(L.t("Ingen kontakter"), Icons.Filled.People) }
         else item {
             Column(Modifier.card(4.dp)) {
                 shown.forEachIndexed { i, c ->
@@ -512,7 +518,11 @@ fun DocumentsScreen() {
 @Composable
 fun DocumentDetailScreen(key: String) {
     val nav = LocalNav.current
-    val doc = NavCache.items[key] as? SecureDocument ?: return
+    val doc = NavCache.items[key] as? SecureDocument ?: run {
+        // The app was restarted on this screen: the document is no longer in memory.
+        AulaScreen(title = L.t("Dokumenter"), onBack = { nav.back() }) { item { EmptyState(L.t("Ingen dokumenter"), Icons.Outlined.Folder) } }
+        return
+    }
     var content by remember { mutableStateOf<DocumentContent?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(doc.id) { runCatching { AulaApi.documentContent(doc) }.onSuccess { content = it }.onFailure { error = it.message } }
