@@ -1,5 +1,7 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import android.content.Intent
 import android.provider.CalendarContract
 import androidx.compose.foundation.background
@@ -83,6 +85,7 @@ import com.majidkabir.aulaplus.ui.components.childColor
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CalendarScreen() {
     val nav = LocalNav.current
@@ -111,10 +114,12 @@ fun CalendarScreen() {
         }
         item { StaleBanner(week.error, week.savedAt) }
         item {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-                Text(AulaDate.weekdayDayMonth(day), style = MaterialTheme.typography.titleLarge)
-                if (isToday) Text(L.t("I dag"), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape).padding(horizontal = 8.dp, vertical = 2.dp))
+            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 4.dp)) {
+                Text(AulaDate.weekdayDayMonth(day), style = MaterialTheme.typography.titleLarge, modifier = Modifier.align(Alignment.CenterVertically))
+                if (isToday) Text(L.t("I dag"), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelMedium, maxLines = 1,
+                    modifier = Modifier.align(Alignment.CenterVertically).background(MaterialTheme.colorScheme.primary, CircleShape)
+                        .padding(horizontal = 8.dp, vertical = 2.dp))
             }
         }
         if (dayEvents.isEmpty()) {
