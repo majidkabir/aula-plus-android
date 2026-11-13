@@ -14,7 +14,8 @@ object Repo {
     val threads = Loadable("threads", ListSerializer(ThreadSummary.serializer())) { AulaApi.threads().first }
     val posts = Loadable("posts", ListSerializer(Post.serializer())) { AulaApi.posts(AulaApi.bootstrap().institutionProfileIds) }
     val notifications = Loadable("notifications", ListSerializer(AulaNotification.serializer())) {
-        AulaApi.bootstrap(); AulaApi.notifications()
+        val s = AulaApi.bootstrap()
+        AulaApi.notifications(s.children.map { it.id }, s.children.mapNotNull { it.institutionCode }.distinct().sorted())
     }
     val importantDates = Loadable("important-dates", ListSerializer(ImportantDate.serializer())) {
         AulaApi.bootstrap(); AulaApi.importantDates()
@@ -73,6 +74,44 @@ object Repo {
             AulaApi.media(albumId, AulaApi.bootstrap().institutionProfileIds)
         }
     }
+
+    /** "Billeder af <barn>": every photo the child is tagged in. Keyed by -childId so it never meets a real album. */
+    fun taggedMedia(childId: Int) = albumMedia.getOrPut(-childId) {
+        Loadable("tagged-$childId", ListSerializer(Media.serializer())) {
+            AulaApi.bootstrap(); AulaApi.taggedMedia(childId)
+        }
+    }
+
+    // region Gallery "new" markers (from Aula's gallery notifications)
+
+    private val galleryNotifications get() = notifications.value.orEmpty().filter { it.isGallery }
+
+    /** Notifications that make photos "new" in album [albumId], or in child [childId]'s tagged album. */
+    fun newNotifications(albumId: Int? = null, childId: Int? = null): List<AulaNotification> = galleryNotifications.filter {
+        if (childId != null) it.isTaggedInMedia && it.relatedChildId == childId else !it.isTaggedInMedia && it.albumId == albumId
+    }
+
+    /** One per photo, however many notifications it has. */
+    private fun photoCount(list: List<AulaNotification>) = list.mapNotNull { it.mediaId }.toSet().size + list.count { it.mediaId == null }
+
+    fun newCount(albumId: Int? = null, childId: Int? = null) = photoCount(newNotifications(albumId, childId))
+
+    val newMediaIds: Set<Int> get() = galleryNotifications.mapNotNull { it.mediaId }.toSet()
+
+    val newGalleryCount: Int get() = photoCount(galleryNotifications.filter { it.isNewMedia || it.isTaggedInMedia })
+
+    /** Clears the new markers for an album (and the photos shown in it), on Aula too. */
+    suspend fun markSeen(albumId: Int? = null, childId: Int? = null, media: List<Media>) {
+        if (Demo.isOn) return // keep screenshots stable
+        val shown = media.map { it.id }.toSet()
+        val seen = (newNotifications(albumId, childId) + galleryNotifications.filter { it.mediaId in shown }).distinctBy { it.id }
+        if (seen.isEmpty()) return
+        val ids = seen.map { it.id }.toSet()
+        notifications.mutate { list -> list.filterNot { it.id in ids } }
+        if (!Demo.isOn) runCatching { AulaApi.deleteNotifications(seen) }
+    }
+
+    // endregion
 
     fun dayPlans(childId: Int, date: LocalDate): Loadable<List<DayPlan>> {
         val start = AulaDate.weekStart(date)

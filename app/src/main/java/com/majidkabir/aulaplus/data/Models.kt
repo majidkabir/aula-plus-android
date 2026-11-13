@@ -149,8 +149,21 @@ data class ImportantDate(val id: String, val title: String, val startMs: Long, v
 @Serializable
 data class Album(val id: Int, val title: String, val dateMs: Long? = null, val coverUrl: String? = null, val count: Int? = null)
 
+/** A person tagged in a photo (`id` is their institution profile id). */
 @Serializable
-data class Media(val id: Int, val thumbUrl: String? = null, val fullUrl: String? = null, val isVideo: Boolean = false)
+data class MediaTag(val id: Int, val name: String)
+
+@Serializable
+data class Media(
+    val id: Int,
+    val thumbUrl: String? = null,
+    val fullUrl: String? = null,
+    val isVideo: Boolean = false,
+    val title: String? = null,
+    val tags: List<MediaTag> = emptyList(),
+) {
+    fun isTagged(childId: Int) = tags.any { it.id == childId }
+}
 
 @Serializable
 data class AulaNotification(
@@ -162,7 +175,25 @@ data class AulaNotification(
     val postId: Int? = null,
     val threadId: String? = null,
     val albumId: Int? = null,
-)
+    val eventType: String? = null,
+    /** Raw `notificationId` + owner profile: what `deleteNotifications` needs. */
+    val notificationId: String? = null,
+    val institutionProfileId: Int? = null,
+    val mediaId: Int? = null,
+    val relatedChildId: Int? = null,
+) {
+    val isTaggedInMedia get() = eventType == "TaggedInMedia"
+    /** A new photo in an album (not a tag). */
+    val isNewMedia get() = eventType == "NewMedia" || eventType == "MediaAddedToAlbum"
+    val isGallery get() = (module ?: "").equals("gallery", true) ||
+        eventType in setOf("NewMedia", "MediaAddedToAlbum", "TaggedInMedia", "AlbumShared")
+
+    companion object {
+        /** `TaggedInMedia` has no mediaId; Aula's web app reads it from the notificationId (`<area>:<x>-<mediaId>…`). */
+        fun mediaIdFromNotificationId(id: String?): Int? =
+            id?.split(":")?.getOrNull(1)?.split("-")?.getOrNull(1)?.toIntOrNull()
+    }
+}
 
 @Serializable
 data class Comment(val id: Int, val author: String, val html: String, val dateMs: Long? = null)

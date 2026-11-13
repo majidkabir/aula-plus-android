@@ -70,7 +70,21 @@ object Demo {
         AulaNotification("n1", "Ny besked: Tur til Zoologisk Have", "messages", "Emma", ago(25), threadId = "1"),
         AulaNotification("n2", "Nyt opslag: Julefrokost i SFO'en", "posts", null, ago(90), postId = 1),
         AulaNotification("n3", "Nye billeder i albummet Efterårsferie", "gallery", "Noah", ago(60 * 30), albumId = 1),
+        // 2 new photos in "Juletræet pyntes", Emma tagged in one of them.
+        AulaNotification("g1", "Nye billeder i galleriet", "gallery", null, ago(40), albumId = 3, eventType = "NewMedia", mediaId = 1),
+        AulaNotification("g2", "Nye billeder i galleriet", "gallery", null, ago(40), albumId = 3, eventType = "NewMedia", mediaId = 2),
+        AulaNotification("g3", "Emma er tagget på et billede", "gallery", "Emma", ago(45), eventType = "TaggedInMedia", mediaId = 2, relatedChildId = 101),
     )
+
+    val media get() = (1..12).map { i ->
+        val tags = when (i % 4) {
+            0 -> listOf(MediaTag(101, "Emma Ghafouri"))
+            1 -> listOf(MediaTag(102, "Noah Ghafouri"), MediaTag(900, "Ida Holm"))
+            2 -> listOf(MediaTag(101, "Emma Ghafouri"), MediaTag(102, "Noah Ghafouri"))
+            else -> emptyList()
+        }
+        Media(i, isVideo = i == 7, tags = tags)
+    }
 
     val albums get() = listOf(
         Album(1, "Efterårsferie", ago(60 * 24 * 10), null, 24), Album(2, "Motionsdag", ago(60 * 24 * 30), null, 41),
@@ -111,7 +125,7 @@ object Demo {
         key.startsWith("weekplan-") -> weekPlans
         key.startsWith("tasks-") -> tasks
         key.startsWith("plans-") -> dayPlans
-        key.startsWith("album-") -> emptyList<Media>()
+        key.startsWith("album-") || key.startsWith("tagged-") -> media
         else -> null
     }
 }

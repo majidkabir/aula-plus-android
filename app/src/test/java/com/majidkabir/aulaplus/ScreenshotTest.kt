@@ -25,6 +25,7 @@ import com.majidkabir.aulaplus.ui.LocalNav
 import com.majidkabir.aulaplus.ui.Nav
 import com.majidkabir.aulaplus.ui.screens.CalendarScreen
 import com.majidkabir.aulaplus.ui.screens.ChildPresenceScreen
+import com.majidkabir.aulaplus.ui.screens.AlbumScreen
 import com.majidkabir.aulaplus.ui.screens.GalleryScreen
 import com.majidkabir.aulaplus.ui.screens.LoginScreen
 import com.majidkabir.aulaplus.ui.screens.MessagesScreen
@@ -96,6 +97,7 @@ class ScreenshotTest {
         Triple("post", Tab.MORE, { PostDetailScreen(1) }),
         Triple("settings", Tab.MORE, { SettingsScreen() }),
         Triple("gallery", Tab.MORE, { GalleryScreen() }),
+        Triple("album", Tab.MORE, { AlbumScreen(3) }),
         Triple("notifications", Tab.MORE, { NotificationsScreen() }),
         Triple("vacations", Tab.MORE, { VacationRequestsScreen() }),
     )

@@ -4,7 +4,26 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.font.FontWeight
+import com.majidkabir.aulaplus.data.Child
+import com.majidkabir.aulaplus.ui.components.childColor
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,16 +67,18 @@ import kotlinx.coroutines.launch
 /** Full-screen photo viewer: swipe between photos, play videos, save or share the current one. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MediaViewer(items: List<Media>, start: Int, onClose: () -> Unit) {
+fun MediaViewer(items: List<Media>, start: Int, children: List<Child> = emptyList(), newIds: Set<Int> = emptySet(), onClose: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val pager = rememberPagerState(initialPage = start.coerceIn(0, (items.size - 1).coerceAtLeast(0))) { items.size }
     var sharing by remember { mutableStateOf(false) }
+    var showInfo by remember { mutableStateOf(true) }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(pager, Modifier.fillMaxSize()) { i ->
                 val m = items[i]
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null,
+                    onClickLabel = L.t("Vis eller skjul tags")) { showInfo = !showInfo }, contentAlignment = Alignment.Center) {
                     SubcomposeAsyncImage(
                         model = if (m.isVideo) m.thumbUrl else (m.fullUrl ?: m.thumbUrl), contentDescription = null,
                         contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize(),
@@ -68,6 +89,10 @@ fun MediaViewer(items: List<Media>, start: Int, onClose: () -> Unit) {
                         Icon(Icons.Filled.PlayCircle, L.t("Afspil video"), tint = Color.White, modifier = Modifier.size(72.dp))
                     }
                 }
+            }
+            val current = items.getOrNull(pager.currentPage)
+            AnimatedVisibility(showInfo && current != null, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
+                current?.let { MediaInfo(it, children, it.id in newIds) }
             }
             Row(Modifier.fillMaxWidth().systemBarsPadding().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose) { Icon(Icons.Filled.Close, L.t("Luk"), tint = Color.White) }
@@ -91,6 +116,33 @@ fun MediaViewer(items: List<Media>, start: Int, onClose: () -> Unit) {
                     if (sharing) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                     else Icon(Icons.Filled.Share, L.t("Gem eller del"), tint = Color.White)
                 }
+            }
+        }
+    }
+}
+
+/** Title, "new" marker and the people tagged in the photo; own children first and in their colour. */
+@Composable
+private fun MediaInfo(m: Media, children: List<Child>, isNew: Boolean) {
+    val mine = children.map { it.id }.toSet()
+    val tags = m.tags.sortedBy { if (it.id in mine) 0 else 1 }
+    if (m.title == null && tags.isEmpty() && !isNew) return
+    Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f))))
+        .navigationBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (isNew) Text(L.t("NY"), color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
+                modifier = Modifier.clip(CircleShape).background(Color(0xFFFF3B30)).padding(horizontal = 6.dp, vertical = 2.dp))
+            m.title?.let { Text(it, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 2) }
+        }
+        if (tags.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState())
+            .clearAndSetSemantics { contentDescription = L.t("Tagget: %s", tags.joinToString(", ") { it.name }) },
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.LocalOffer, null, tint = Color.White, modifier = Modifier.size(16.dp))
+            tags.forEach { t ->
+                val own = t.id in mine
+                Text(t.name, color = Color.White, style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (own) FontWeight.Bold else FontWeight.Normal),
+                    modifier = Modifier.clip(CircleShape).background(if (own) childColor(t.id) else Color.White.copy(alpha = 0.18f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp))
             }
         }
     }

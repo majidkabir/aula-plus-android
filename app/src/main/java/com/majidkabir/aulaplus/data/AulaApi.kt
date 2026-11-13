@@ -592,23 +592,78 @@ object AulaApi {
     suspend fun media(albumId: Int, profileIds: List<Int>): List<Media> {
         val d = call("gallery.getMedia", listOf("albumId" to "$albumId", "index" to "0", "limit" to "500", "sortOn" to "uploadedAt",
             "orderDirection" to "desc", "filterBy" to "all") + ids(profileIds, "filterInstProfileIds[]"))
+        return mediaList(d)
+    }
+
+    /** Every photo [childId] is tagged in, across all albums (Aula's "user specific album"). */
+    suspend fun taggedMedia(childId: Int): List<Media> {
+        val pageSize = 100
+        val all = mutableListOf<Media>()
+        val seen = mutableSetOf<Int>()
+        var index = 0
+        repeat(30) {
+            val d = call("gallery.getMedia", listOf("userSpecificAlbum" to "true", "filterInstProfileIds[]" to "$childId",
+                "index" to "$index", "limit" to "$pageSize", "sortOn" to "uploadedAt", "orderDirection" to "desc", "filterBy" to "all"))
+            val raw = (d as? JsonArray)?.objects() ?: d.asObj().objs("results")
+            val page = mediaList(d).filter { seen.add(it.id) }
+            all += page
+            // `totalSize` is unreliable: stop on a short or repeated page.
+            if (raw.size < pageSize || page.isEmpty()) return all
+            index += raw.size
+        }
+        return all
+    }
+
+    private fun mediaList(d: JsonElement?): List<Media> {
         val list = (d as? JsonArray)?.objects() ?: d.asObj().objs("results")
         return list.mapNotNull { m ->
+            val tags = m.arr("tags").mapNotNull { t ->
+                val o = t.asObj()
+                val id = o.int("id") ?: o.int("institutionProfileId") ?: return@mapNotNull null
+                val name = o.firstStr("name", "fullName") ?: o.obj("profile").firstStr("name", "fullName") ?: return@mapNotNull null
+                MediaTag(id, name)
+            }.distinctBy { it.id }
             Media(m.int("id") ?: return@mapNotNull null,
                 m.firstStr("mediumThumbnailUrl", "thumbnailUrl", "smallThumbnailUrl", "largeThumbnailUrl") ?: m.obj("file").str("url"),
                 m.obj("file").str("url") ?: m.str("largeThumbnailUrl"),
-                (m.str("mediaType") ?: "").contains("video", true))
+                (m.str("mediaType") ?: "").contains("video", true),
+                m.str("title")?.takeIf { it.isNotBlank() }, tags)
         }.distinctBy { it.id } // Aula lists an item once per child profile
     }
 
-    suspend fun notifications(): List<AulaNotification> =
-        call("notifications.getNotificationsForActiveProfile", listOf("offset" to "0", "limit" to "50")).objects().map { n ->
+    /** [childIds]/[institutionCodes] matter: without them Aula leaves out tag and child notifications. */
+    suspend fun notifications(childIds: List<Int> = emptyList(), institutionCodes: List<String> = emptyList()): List<AulaNotification> =
+        call("notifications.getNotificationsForActiveProfile", listOf("offset" to "0", "limit" to "50") +
+            childIds.map { "activeChildrenIds[]" to "$it" } + institutionCodes.map { "activeInstitutionCodes[]" to it }).objects().map { n ->
+            val type = n.str("notificationEventType")
             val title = n.firstStr("title", "heading", "postTitle", "threadSubject")
-                ?: n.str("messageText")?.let(Html::plain) ?: n.str("notificationEventType") ?: L.t("Notifikation")
+                ?: n.str("messageText")?.let(Html::plain) ?: galleryTitle(type) ?: type ?: L.t("Notifikation")
+            val rawId = n.str("notificationId")?.takeIf { it.isNotBlank() }
             AulaNotification(n.firstStr("id", "notificationId") ?: title.hashCode().toString(), title,
                 n.firstStr("module", "notificationArea"), n.str("relatedChildName"),
-                AulaDate.parse(n.str("createdAt") ?: n.str("triggered")), n.int("postId"), n.str("threadId"), n.int("albumId"))
+                AulaDate.parse(n.str("createdAt") ?: n.str("triggered")), n.int("postId"), n.str("threadId"), n.int("albumId"),
+                eventType = type, notificationId = rawId, institutionProfileId = n.int("institutionProfileId"),
+                mediaId = n.int("mediaId") ?: if (type == "TaggedInMedia") AulaNotification.mediaIdFromNotificationId(rawId) else null,
+                relatedChildId = n.int("relatedChildInstitutionProfileId"))
         }
+
+    private fun galleryTitle(type: String?): String? = when (type) {
+        "NewMedia", "MediaAddedToAlbum" -> L.t("Nye billeder i galleriet")
+        "TaggedInMedia" -> L.t("Dit barn er tagget på et billede")
+        "AlbumShared" -> L.t("Nyt album delt")
+        else -> null
+    }
+
+    /** Marks notifications as seen (Aula deletes them, like the web app does). */
+    suspend fun deleteNotifications(list: List<AulaNotification>) {
+        val items = list.mapNotNull { n -> n.notificationId?.let { id -> n.institutionProfileId?.let { id to it } } }
+        if (items.isEmpty()) return
+        call("Notifications.deleteNotifications", body = buildJsonObject {
+            put("notifications", buildJsonArray {
+                items.forEach { (id, owner) -> add(buildJsonObject { put("notificationId", id); put("institutionProfileId", owner) }) }
+            })
+        })
+    }
 
     // endregion
 
