@@ -1,5 +1,7 @@
 package com.majidkabir.aulaplus.data
 
+import com.majidkabir.aulaplus.core.AulaConfig
+
 import com.majidkabir.aulaplus.core.L
 import kotlinx.serialization.Serializable
 
@@ -25,7 +27,26 @@ data class Session(
     val guardianProfileIds: List<Int> = emptyList(),
     /** Widget id → name, as Aula shows it. */
     val widgetNames: Map<String, String> = emptyMap(),
-)
+    /** Widgets with a web address (opened in the browser). */
+    val widgetLinks: List<WidgetLink> = emptyList(),
+) {
+    /** Widgets that look like a week plan, by Aula's own name for them. */
+    val weekPlanWidgetNames: List<String>
+        get() = widgetNames.values.filter { WEEK_PLAN_HINT.containsMatchIn(it) }.sorted()
+
+    /** False when Aula offers no week plan at all (typical for nurseries and kindergartens). */
+    val hasWeekPlan: Boolean
+        get() = widgetIds.any { it in setOf(AulaConfig.WIDGET_MEEBOOK, AulaConfig.WIDGET_MU_UGEPLAN, AulaConfig.WIDGET_MU_SSO) } ||
+            weekPlanWidgetNames.isNotEmpty()
+
+    private companion object {
+        val WEEK_PLAN_HINT = Regex("(?i)uge|plan|lektie|opgave|easyiq|meebook|docendo|huskeliste|forløb|skoleportal")
+    }
+}
+
+/** A tool Aula shows on the parent's front page, with a link to open it. */
+@Serializable
+data class WidgetLink(val id: String, val name: String, val url: String)
 
 enum class PresenceStatus(val code: Int) {
     NOT_PRESENT(0), SICK(1), REPORTED_ABSENT(2), PRESENT(3), FIELD_TRIP(4), SLEEPING(5),

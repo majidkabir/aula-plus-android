@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -180,6 +181,17 @@ fun MoreScreen() {
                 MenuRow(L.t("Ferieanmodninger"), { IconTile(Icons.Filled.WbSunny, Color(0xFFFF9500)) }, missing) { nav.open("vacations") }
             }
         }
+        val tools = Repo.session.value?.widgetLinks.orEmpty()
+        if (tools.isNotEmpty()) item {
+            val ctx = LocalContext.current
+            MenuGroup(L.t("Værktøjer i Aula")) {
+                tools.forEach { t ->
+                    MenuRow(t.name, { IconTile(Icons.Filled.Apps, Color(0xFF5856D6)) }) {
+                        ctx.openSafely(Intent(Intent.ACTION_VIEW, Uri.parse(t.url)))
+                    }
+                }
+            }
+        }
         item {
             MenuGroup(null) {
                 MenuRow(L.t("Notifikationer"), { IconTile(Icons.Filled.Notifications, Color(0xFFFF3B30)) }) { nav.open("notifications") }
@@ -319,7 +331,7 @@ private fun AlbumTile(title: String, subtitle: String, coverUrl: String?, tint: 
 }
 
 @Composable
-fun GalleryScreen() {
+fun GalleryScreen(asTab: Boolean = false) {
     val nav = LocalNav.current
     LaunchedEffect(Unit) {
         launch { Repo.albums.load(600) }
@@ -327,7 +339,8 @@ fun GalleryScreen() {
     }
     val albums = Repo.albums.value ?: emptyList()
     val children = AppState.children
-    AulaScreen(title = L.t("Galleri"), onBack = { nav.back() }, large = true, refreshing = Repo.albums.isLoading,
+    AulaScreen(title = L.t("Galleri"), onBack = if (asTab) null else ({ nav.back() }), large = true, refreshing = Repo.albums.isLoading,
+        bottomBar = { if (asTab) AulaBottomBar() },
         onRefresh = { coroutineScope { launch { Repo.notifications.refresh() }; Repo.albums.refresh() } }) {
         item { StaleBanner(Repo.albums.error, Repo.albums.savedAt) }
         if (children.isNotEmpty()) {

@@ -351,7 +351,7 @@ fun WeekPlanScreen() {
         if (!supported && Repo.session.value != null && visibleTasks.isEmpty()) {
             val names = Repo.session.value?.widgetNames.orEmpty().values.sorted()
             // Widgets that look like a week plan (by Aula's own name for them).
-            val planWidgets = names.filter { Regex("(?i)uge|plan|lektie|opgave|easyiq|meebook|docendo|huskeliste|forløb|skoleportal").containsMatchIn(it) }
+            val planWidgets = Repo.session.value?.weekPlanWidgetNames.orEmpty()
             item {
                 if (planWidgets.isEmpty()) EmptyState(L.t("Ingen ugeplan i Aula"), Icons.Outlined.Description,
                     subtitle = L.t("Dine børns institution deler ingen ugeplan i Aula. Det er normalt for vuggestuer og børnehaver."))
