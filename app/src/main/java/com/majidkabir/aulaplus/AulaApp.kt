@@ -13,6 +13,7 @@ class AulaApp : Application() {
         context = this
         L.override = prefs.getString("lang", "") ?: ""
         ThemeStore.load()
+        com.majidkabir.aulaplus.data.AppLock.register()
     }
 
     companion object {

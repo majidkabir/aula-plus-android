@@ -17,14 +17,9 @@ object AppState {
     var loginNotice by mutableStateOf<String?>(null)
     var selectedChildId by mutableStateOf<Int?>(null)
     var tab by mutableStateOf(Tab.TODAY)
-    var isLocked by mutableStateOf(false)
 
     /** Pending deep link (from a notification) the UI should open. */
     var pendingRoute by mutableStateOf<String?>(null)
-
-    var lockEnabled: Boolean
-        get() = AulaApp.isReady && AulaApp.prefs.getBoolean("lock", false)
-        set(v) { AulaApp.prefs.edit().putBoolean("lock", v).apply() }
 
     val children: List<Child> get() = Repo.session.value?.children ?: emptyList()
     val visibleChildren: List<Child> get() = selectedChildId?.let { id -> children.filter { it.id == id } } ?: children
@@ -34,7 +29,7 @@ object AppState {
         if (Demo.isOn) { phase = Phase.LOGGED_IN; return }
         val has = TokenStore.hasTokens
         phase = if (has) Phase.LOGGED_IN else Phase.LOGGED_OUT
-        isLocked = has && lockEnabled
+        AppLock.sync(loggedIn = has, coldStart = true)
         if (has) Repo.session.load()
     }
 
@@ -42,6 +37,8 @@ object AppState {
         loginNotice = null
         AulaApi.reset()
         phase = Phase.LOGGED_IN
+        AppLock.sync(loggedIn = true)
+        AppLock.offerAfterLogin(AulaApp.context)
         Repo.session.refresh()
     }
 
@@ -49,6 +46,7 @@ object AppState {
         if (phase != Phase.LOGGED_IN) return
         loginNotice = L.t("Din Aula-session er udløbet. Log ind med MitID igen.")
         phase = Phase.LOGGED_OUT
+        AppLock.sync(loggedIn = false)
     }
 
     fun logout() {
@@ -60,5 +58,6 @@ object AppState {
         selectedChildId = null
         WidgetWriter.clear()
         phase = Phase.LOGGED_OUT
+        AppLock.sync(loggedIn = false)
     }
 }

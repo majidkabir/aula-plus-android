@@ -1,5 +1,8 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.data.AppLock
+import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.filled.Timer
 import android.widget.Toast
 import androidx.compose.material.icons.filled.PlayCircle
 import com.majidkabir.aulaplus.data.Demo
@@ -552,13 +555,13 @@ fun DocumentDetailScreen(key: String) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen() {
     val nav = LocalNav.current
     val ctx = LocalContext.current
     val s = Repo.session.value
     var notificationsOn by remember { mutableStateOf(RefreshWorker.isEnabled) }
-    var lockOn by remember { mutableStateOf(AppState.lockEnabled) }
     var confirmLogout by remember { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         notificationsOn = granted
@@ -591,12 +594,26 @@ fun SettingsScreen() {
                     if (on && Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
                     else { notificationsOn = on; RefreshWorker.setEnabled(ctx, on) }
                 }
-                ToggleRow(L.t("Lås med fingeraftryk"), Icons.Filled.Fingerprint, Color(0xFF34C759), lockOn) { on ->
-                    val auth = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or
-                        androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
-                    if (on && androidx.biometric.BiometricManager.from(ctx).canAuthenticate(auth) != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
-                        Toast.makeText(ctx, L.t("Telefonen har ingen skærmlås eller fingeraftryk sat op."), Toast.LENGTH_LONG).show()
-                    } else { lockOn = on; AppState.lockEnabled = on }
+                ToggleRow(L.t("Lås med fingeraftryk"), Icons.Filled.Fingerprint, Color(0xFF34C759), AppLock.isEnabled) { on ->
+                    when {
+                        !on -> AppLock.disable()
+                        !AppLock.isAvailable(ctx) ->
+                            Toast.makeText(ctx, L.t("Telefonen har ingen skærmlås eller fingeraftryk sat op."), Toast.LENGTH_LONG).show()
+                        else -> (ctx as? androidx.fragment.app.FragmentActivity)?.let { AppLock.enable(it) }
+                    }
+                }
+                if (AppLock.isEnabled) Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        IconTile(Icons.Filled.Timer, Color(0xFFFF9500))
+                        Text(L.t("Lås igen"), style = MaterialTheme.typography.bodyLarge)
+                    }
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AppLock.Delay.entries.forEach { d ->
+                            FilterChip(AppLock.delay == d, { AppLock.delay = d }, { Text(d.label) })
+                        }
+                    }
+                    Text(L.t("Beskeder og kalender skjules, når du skifter app, og kræver fingeraftryk eller kode for at åbne igen."),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {

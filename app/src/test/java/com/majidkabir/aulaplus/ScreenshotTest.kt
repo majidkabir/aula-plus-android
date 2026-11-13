@@ -39,6 +39,8 @@ import com.majidkabir.aulaplus.ui.screens.WeekPlanScreen
 import com.majidkabir.aulaplus.ui.theme.AppTheme
 import com.majidkabir.aulaplus.ui.theme.AulaTheme
 import com.majidkabir.aulaplus.ui.theme.ThemeStore
+import com.majidkabir.aulaplus.data.AppLock
+import com.majidkabir.aulaplus.ui.screens.LockScreen
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -106,6 +108,14 @@ class ScreenshotTest {
         shot("theme-forest-today", dark = true, theme = AppTheme.FOREST) { TodayScreen() }
         shot("theme-lavender-settings", theme = AppTheme.LAVENDER, tab = Tab.MORE) { SettingsScreen() }
         shot("theme-graphite-calendar", dark = true, theme = AppTheme.GRAPHITE, tab = Tab.CALENDAR) { CalendarScreen() }
+    }
+    @Test fun lock() {
+        shot("light-lock") { LockScreen() }
+        shot("dark-lock", dark = true) { LockScreen() }
+        shot("theme-sunset-lock", theme = AppTheme.SUNSET) { LockScreen() }
+        AppLock.previewEnabled(true)
+        shot("light-settings-lock", tab = Tab.MORE) { SettingsScreen() }
+        AppLock.previewEnabled(false)
     }
     @Test fun largeText() {
         shot("xl-today", fontScale = 1.8f) { TodayScreen() }
