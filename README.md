@@ -24,6 +24,13 @@ The latest debug APK is built by CI on every push to `main`:
 2. Allow "Install unknown apps" for your browser when asked, then install.
 3. Open Aula+ and log in with MitID.
 
+## Try it on a laptop (emulator)
+
+```sh
+adb install -r aula-plus-debug.apk
+adb shell am start -n com.majidkabir.aulaplus/.MainActivity --ez demo true   # sample data, no MitID
+```
+
 ## Build
 
 ```sh
