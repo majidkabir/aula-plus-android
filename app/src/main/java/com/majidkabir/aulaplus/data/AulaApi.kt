@@ -586,7 +586,7 @@ object AulaApi {
             val cover = a.arr("thumbnailsUrls").firstNotNullOfOrNull { (it as? JsonPrimitive)?.content ?: it.asObj().str("url") }
             Album(a.int("id") ?: return@mapNotNull null, a.str("title") ?: "Album", AulaDate.parse(a.str("creationDate")),
                 cover, a.int("size") ?: a.int("totalSize"))
-        }
+        }.distinctBy { it.id } // Aula lists an item once per child profile
     }
 
     suspend fun media(albumId: Int, profileIds: List<Int>): List<Media> {
@@ -598,7 +598,7 @@ object AulaApi {
                 m.firstStr("mediumThumbnailUrl", "thumbnailUrl", "smallThumbnailUrl", "largeThumbnailUrl") ?: m.obj("file").str("url"),
                 m.obj("file").str("url") ?: m.str("largeThumbnailUrl"),
                 (m.str("mediaType") ?: "").contains("video", true))
-        }
+        }.distinctBy { it.id } // Aula lists an item once per child profile
     }
 
     suspend fun notifications(): List<AulaNotification> =
