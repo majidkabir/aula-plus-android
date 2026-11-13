@@ -73,6 +73,10 @@ fun LoginScreen() {
     var showWeb by remember { mutableStateOf(false) }
     var working by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
+    // One silent second attempt per tap: Aula sometimes rejects the code from the first MitID
+    // round trip, while a login right after goes through at once without MitID.
+    var retried by remember { mutableStateOf(false) }
+    fun startLogin() { pkce = Pkce.make(); LoginAttempts.add(pkce); errorText = null; showWeb = true }
     val t = ThemeStore.theme
 
     if (showWeb) {
@@ -100,6 +104,11 @@ fun LoginScreen() {
                         } catch (e: Exception) {
                             last = e
                         }
+                    }
+                    if (last is com.majidkabir.aulaplus.core.TokenEndpointException && !retried) {
+                        retried = true
+                        startLogin()
+                        return@launch
                     }
                     last?.let { throw it }
                 } catch (e: Exception) {
@@ -134,7 +143,7 @@ fun LoginScreen() {
                 }
             }
             Spacer(Modifier.weight(1f))
-            Button(onClick = { pkce = Pkce.make(); LoginAttempts.add(pkce); errorText = null; showWeb = true }, enabled = !working,
+            Button(onClick = { retried = false; startLogin() }, enabled = !working,
                 modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
                 if (working) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                 else Text(L.t("Log ind med MitID"), style = MaterialTheme.typography.titleMedium)
