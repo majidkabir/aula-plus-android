@@ -29,6 +29,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -76,8 +77,9 @@ fun AulaRoot() {
     when (AppState.phase) {
         Phase.LAUNCHING -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         Phase.LOGGED_OUT -> LoginScreen()
-        Phase.LOGGED_IN -> {
-            MainNav()
+        Phase.LOGGED_IN -> Box(Modifier.fillMaxSize()) {
+            // While locked, TalkBack must not read the screens behind the lock.
+            Box(Modifier.fillMaxSize().then(if (AppLock.isLocked) Modifier.clearAndSetSemantics {} else Modifier)) { MainNav() }
             if (AppLock.isLocked) LockScreen() else LockOfferDialog()
         }
     }

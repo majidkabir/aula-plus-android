@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,8 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.withResumed
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.majidkabir.aulaplus.core.L
 import com.majidkabir.aulaplus.data.AppLock
@@ -69,16 +70,21 @@ fun LockScreen() {
     val biometric = Demo.isOn || AppLock.hasBiometrics(ctx)
     fun unlock() { if (!Demo.isOn) activity?.let { AppLock.unlock(it) } }
 
-    // Ask straight away, and again each time the app comes back while still locked.
+    // Ask once when shown and once each time the app comes back. Not on every resume:
+    // cancelling the dialog resumes the app, and asking again then would trap the user in a loop.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(lifecycle) {
-        val observer = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) unlock() }
-        lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer) }
+    LaunchedEffect(AppLock.promptRequest) {
+        lifecycle.withResumed {}
+        unlock()
     }
+    // Back leaves the app instead of navigating the screens behind the lock.
+    BackHandler { activity?.moveTaskToBack(true) }
 
     ThemedBackground {
-        Column(Modifier.fillMaxSize().systemBarsPadding().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxSize()
+            // Nothing behind the lock screen may receive a touch.
+            .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } } }
+            .systemBarsPadding().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(Modifier.weight(1f))
             AppMark(84.dp)
             Spacer(Modifier.height(20.dp))

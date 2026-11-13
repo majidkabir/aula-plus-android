@@ -42,6 +42,10 @@ object AppLock {
     /** One-time "lock with fingerprint?" question after the first login. */
     var showOffer by mutableStateOf(false)
 
+    /** Bumped each time the app comes back while locked: the lock screen asks once per bump. */
+    var promptRequest by mutableStateOf(0)
+        private set
+
     private var backgroundedAt: Long? = null
     private var authenticating = false
 
@@ -63,6 +67,9 @@ object AppLock {
     private val loggedIn get() = AppState.phase == Phase.LOGGED_IN
 
     fun onBackground() {
+        // The PIN/pattern screen of the fingerprint dialog can send the app to the background;
+        // that must not count as leaving the app (it would lock again right after unlocking).
+        if (authenticating) return
         backgroundedAt = System.currentTimeMillis()
         // Lock before Android takes the recents thumbnail.
         if (isEnabled && loggedIn && delay == Delay.IMMEDIATELY) isLocked = true
@@ -72,6 +79,7 @@ object AppLock {
         val since = backgroundedAt ?: return
         backgroundedAt = null
         if (isEnabled && loggedIn && System.currentTimeMillis() - since >= delay.seconds * 1000L) isLocked = true
+        if (isLocked) promptRequest++
     }
 
     /** Called when the login state is known or changes. Cold start: locked if the lock is on. */
