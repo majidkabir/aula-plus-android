@@ -671,18 +671,30 @@ object AulaApi {
         else -> null
     }
 
-    /** Replaces the people tagged in a photo, like Aula's web app (`gallery.updateMedia` with the full tag list). */
-    suspend fun setTags(media: Media, tagIds: List<Int>) {
-        call("gallery.updateMedia", body = buildJsonObject {
-            putJsonArray("media") {
-                add(buildJsonObject {
-                    put("id", media.id)
-                    putJsonArray("tags") { tagIds.forEach { add(JsonPrimitive(it)) } }
-                    put("title", media.title)
-                    put("description", media.description)
-                })
-            }
-        })
+    /**
+     * Tags or untags one person in a photo. Aula's own app uses `gallery.addTag`/`removeTag`
+     * (`gallery.updateMedia` needs edit rights a guardian usually lacks); the web call is the fallback.
+     */
+    suspend fun setTag(profileId: Int, media: Media, tagged: Boolean, allTagIds: List<Int>) {
+        val first = runCatching {
+            call(if (tagged) "gallery.addTag" else "gallery.removeTag", body = buildJsonObject {
+                put("mediaId", media.id); put("instProfileId", profileId); put("tagId", profileId)
+            })
+        }
+        val error = first.exceptionOrNull() ?: return
+        if (error is NotLoggedInException) throw error
+        runCatching {
+            call("gallery.updateMedia", body = buildJsonObject {
+                putJsonArray("media") {
+                    add(buildJsonObject {
+                        put("id", media.id)
+                        putJsonArray("tags") { allTagIds.forEach { add(JsonPrimitive(it)) } }
+                        put("title", media.title)
+                        put("description", media.description)
+                    })
+                }
+            })
+        }.onFailure { throw error }
     }
 
     /** Marks notifications as seen (Aula deletes them, like the web app does). */
