@@ -78,7 +78,7 @@ object Repo {
     /** "Billeder af <barn>": every photo the child is tagged in. Keyed by -childId so it never meets a real album. */
     fun taggedMedia(childId: Int) = albumMedia.getOrPut(-childId) {
         Loadable("tagged-$childId", ListSerializer(Media.serializer())) {
-            AulaApi.bootstrap(); AulaApi.taggedMedia(childId)
+            AulaApi.taggedMedia(childId, AulaApi.bootstrap().institutionProfileIds)
         }
     }
 
