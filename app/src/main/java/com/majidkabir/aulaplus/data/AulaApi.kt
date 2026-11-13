@@ -71,6 +71,9 @@ private class MemoryCookieJar : CookieJar {
     @Synchronized fun clear() = store.clear()
 }
 
+/** Gets the list so far (and the expected total, if Aula said) after every page. */
+typealias MediaProgress = suspend (List<Media>, Int?) -> Unit
+
 /**
  * Aula's internal JSON API (`www.aula.dk/api/vNN/?method=...`), mirroring the official app:
  * access_token as query parameter, cookies, csrfp-token on POST, refresh + retry on 401 / sub-codes 9, 23,
@@ -589,46 +592,65 @@ object AulaApi {
         }.distinctBy { it.id } // Aula lists an item once per child profile
     }
 
-    suspend fun media(albumId: Int, profileIds: List<Int>): List<Media> {
-        val d = call("gallery.getMedia", listOf("albumId" to "$albumId", "index" to "0", "limit" to "500", "sortOn" to "uploadedAt",
-            "orderDirection" to "desc", "filterBy" to "all") + ids(profileIds, "filterInstProfileIds[]"))
-        return mediaList(d)
+    /** All photos in an album, newest first. A small first page comes back fast; [progress] gets each page. */
+    suspend fun media(albumId: Int, profileIds: List<Int>, progress: MediaProgress? = null): List<Media> =
+        pages(progress) { index, limit ->
+            listOf("albumId" to "$albumId", "index" to "$index", "limit" to "$limit", "sortOn" to "uploadedAt",
+                "orderDirection" to "desc", "filterBy" to "all") + ids(profileIds, "filterInstProfileIds[]")
+        }
+
+    /** `gallery.getMedia` page by page: 48 first, then 150 at a time. `totalSize` is unreliable: stop on a short or repeated page. */
+    private suspend fun pages(progress: MediaProgress?, query: (index: Int, limit: Int) -> List<Pair<String, String>>): List<Media> {
+        val all = mutableListOf<Media>()
+        val seen = mutableSetOf<Int>()
+        var index = 0
+        for (page in 0 until 60) {
+            val limit = if (page == 0) 48 else 150
+            val d = call("gallery.getMedia", query(index, limit))
+            val raw = (d as? JsonArray)?.objects() ?: d.asObj().objs("results")
+            val fresh = mediaList(d).filter { seen.add(it.id) }
+            all += fresh
+            if (raw.size < limit || fresh.isEmpty()) break
+            index += raw.size
+            progress?.invoke(all.toList(), d.asObj().int("mediaCount") ?: d.asObj().int("totalSize"))
+        }
+        return all
     }
 
     /**
      * Every photo [childId] is tagged in, across all albums. Asks Aula for the child's own album
      * (`userSpecificAlbum`); if that fails or comes back empty, looks through the albums instead.
      */
-    suspend fun taggedMedia(childId: Int, profileIds: List<Int>): List<Media> {
-        val first = runCatching { userSpecificMedia(childId) }
+    suspend fun taggedMedia(childId: Int, profileIds: List<Int>, progress: MediaProgress? = null): List<Media> {
+        val first = runCatching { userSpecificMedia(childId, progress) }
         first.getOrNull()?.takeIf { it.isNotEmpty() }?.let { return it }
-        val scanned = scanAlbums(childId, profileIds)
+        val scanned = scanAlbums(childId, profileIds, progress)
         if (scanned.isEmpty()) first.exceptionOrNull()?.let { throw it }
         return scanned
     }
 
-    private suspend fun userSpecificMedia(childId: Int): List<Media> {
-        val pageSize = 60
-        val all = mutableListOf<Media>()
-        val seen = mutableSetOf<Int>()
-        var index = 0
-        for (i in 0 until 50) {
-            val d = call("gallery.getMedia", listOf("userSpecificAlbum" to "true", "filterInstProfileIds[]" to "$childId",
-                "index" to "$index", "limit" to "$pageSize", "filterBy" to "all"))
-            val raw = (d as? JsonArray)?.objects() ?: d.asObj().objs("results")
-            val page = mediaList(d).filter { seen.add(it.id) }
-            all += page
-            // `totalSize` is unreliable: stop on a short or repeated page.
-            if (raw.size < pageSize || page.isEmpty()) break
-            index += raw.size
-        }
-        return all.filter { it.isTagged(childId) || it.tags.isEmpty() }
+    private suspend fun userSpecificMedia(childId: Int, progress: MediaProgress?): List<Media> {
+        val keep = { list: List<Media> -> list.filter { it.isTagged(childId) || it.tags.isEmpty() } }
+        val wrapped: MediaProgress? = if (progress == null) null else { list, total -> progress(keep(list), total) }
+        return keep(pages(wrapped) { index, limit ->
+            listOf("userSpecificAlbum" to "true", "filterInstProfileIds[]" to "$childId",
+                "index" to "$index", "limit" to "$limit", "filterBy" to "all")
+        })
     }
 
     /** Photos tagged with [childId] in the newest albums, newest album first. */
-    private suspend fun scanAlbums(childId: Int, profileIds: List<Int>): List<Media> = coroutineScope {
-        albums(profileIds).map { a -> async { runCatching { media(a.id, profileIds) }.getOrDefault(emptyList()).filter { it.isTagged(childId) } } }
-            .awaitAll().flatten().distinctBy { it.id }
+    private suspend fun scanAlbums(childId: Int, profileIds: List<Int>, progress: MediaProgress?): List<Media> = coroutineScope {
+        val albums = albums(profileIds)
+        val found = java.util.concurrent.ConcurrentHashMap<Int, List<Media>>()
+        val lock = Mutex()
+        fun merged() = albums.indices.flatMap { found[it].orEmpty() }.distinctBy { it.id }
+        albums.mapIndexed { i, a ->
+            async {
+                found[i] = runCatching { media(a.id, profileIds) }.getOrDefault(emptyList()).filter { it.isTagged(childId) }
+                lock.withLock { progress?.invoke(merged(), null) }
+            }
+        }.awaitAll()
+        merged()
     }
 
     private fun mediaList(d: JsonElement?): List<Media> {

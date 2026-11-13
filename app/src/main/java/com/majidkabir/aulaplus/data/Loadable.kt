@@ -43,6 +43,14 @@ object DiskCache {
  * replaced by fresh data (stale-while-revalidate). Compose state, so screens recompose.
  */
 class Loadable<T>(val key: String, private val serializer: KSerializer<T>, private val fetch: suspend () -> T) {
+    /** Set by [streaming]: a fetch that may emit partial results (and an expected total) before it returns. */
+    private var streamingFetch: (suspend (emit: suspend (T, Int?) -> Unit) -> T)? = null
+
+    companion object {
+        fun <T> streaming(key: String, serializer: KSerializer<T>, fetch: suspend (emit: suspend (T, Int?) -> Unit) -> T): Loadable<T> =
+            Loadable(key, serializer) { fetch { _, _ -> } }.also { it.streamingFetch = fetch }
+    }
+
     var value by mutableStateOf<T?>(null)
         private set
     var savedAt by mutableStateOf<Long?>(null)
@@ -50,6 +58,12 @@ class Loadable<T>(val key: String, private val serializer: KSerializer<T>, priva
     var isLoading by mutableStateOf(false)
         private set
     var error by mutableStateOf<String?>(null)
+        private set
+    /** While a streaming load runs: how many items are expected in total (if the server said). */
+    var expected by mutableStateOf<Int?>(null)
+        private set
+    /** True while `value` holds only the first part of a streaming load (never saved to disk). */
+    var isPartial by mutableStateOf(false)
         private set
     var onChange: (() -> Unit)? = null
 
@@ -72,8 +86,18 @@ class Loadable<T>(val key: String, private val serializer: KSerializer<T>, priva
     suspend fun refresh() {
         if (isLoading || Demo.isOn) return
         isLoading = true
+        val hadValue = value != null
         try {
-            val fresh = withContext(Dispatchers.IO) { fetch() }
+            val fresh = withContext(Dispatchers.IO) {
+                val emit: suspend (T, Int?) -> Unit = { partial, total ->
+                    withContext(Dispatchers.Main) {
+                        expected = total
+                        // Show partial results only when nothing better is on screen.
+                        if (!hadValue || isPartial) { value = partial; isPartial = true }
+                    }
+                }
+                streamingFetch?.invoke(emit) ?: fetch()
+            }
             value = fresh
             savedAt = System.currentTimeMillis()
             error = null
@@ -88,7 +112,7 @@ class Loadable<T>(val key: String, private val serializer: KSerializer<T>, priva
         } catch (e: Exception) {
             error = e.message ?: e.toString()
         } finally {
-            isLoading = false
+            isLoading = false; isPartial = false; expected = null
         }
     }
 
