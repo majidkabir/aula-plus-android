@@ -32,6 +32,7 @@ object L {
     private val en: Map<String, String> = mapOf(
         "Lås med fingeraftryk" to "Lock with fingerprint",
         "Fysisk placering" to "Physical placement",
+        "Aula sendte ingen login-kode tilbage." to "Aula sent no login code back.",
         "MitID-appen er ikke på denne telefon. Godkend i MitID-appen på din anden enhed." to "The MitID app isn't on this phone. Approve in the MitID app on your other device.",
         "Med det samme" to "Immediately",
         "Efter 1 minut" to "After 1 minute",

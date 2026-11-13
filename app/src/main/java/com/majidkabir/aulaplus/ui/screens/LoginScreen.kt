@@ -59,6 +59,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentActivity
 import com.majidkabir.aulaplus.core.AulaConfig
 import com.majidkabir.aulaplus.core.L
+import com.majidkabir.aulaplus.core.LoginAttempts
 import com.majidkabir.aulaplus.core.Pkce
 import com.majidkabir.aulaplus.core.TokenStore
 import com.majidkabir.aulaplus.data.AppState
@@ -80,15 +81,30 @@ fun LoginScreen() {
             scope.launch {
                 working = true
                 try {
-                    val code = callback.getQueryParameter("code")
-                    if (callback.getQueryParameter("state") != pkce.state) error("state")
-                    if (code == null) error("code")
-                    TokenStore.exchange(code, pkce.verifier)
-                    AppState.didLogin()
+                    (callback.getQueryParameter("error_description") ?: callback.getQueryParameter("error"))?.let { error(it) }
+                    val code = callback.getQueryParameter("code") ?: error(L.t("Aula sendte ingen login-kode tilbage."))
+                    val state = callback.getQueryParameter("state")
+                    // Try the attempt this code belongs to (by state), then earlier attempts. PKCE makes
+                    // sure only the right verifier works, so a mismatched or missing state is not fatal.
+                    val verifiers = LoginAttempts.verifiers(state).ifEmpty { listOf(pkce.verifier) }
+                    var last: Exception? = null
+                    for (v in verifiers) {
+                        try {
+                            TokenStore.exchange(code, v)
+                            LoginAttempts.clear()
+                            AppState.didLogin()
+                            last = null
+                            break
+                        } catch (e: java.io.IOException) {
+                            throw e
+                        } catch (e: Exception) {
+                            last = e
+                        }
+                    }
+                    last?.let { throw it }
                 } catch (e: Exception) {
-                    errorText = when {
-                        e.message == "state" -> L.t("Login blev afbrudt (state passede ikke). Prøv igen.")
-                        e is java.io.IOException -> L.t("Ingen forbindelse til Aula.")
+                    errorText = when (e) {
+                        is java.io.IOException -> L.t("Ingen forbindelse til Aula.")
                         else -> e.message
                     }
                 } finally { working = false }
@@ -118,7 +134,7 @@ fun LoginScreen() {
                 }
             }
             Spacer(Modifier.weight(1f))
-            Button(onClick = { pkce = Pkce.make(); errorText = null; showWeb = true }, enabled = !working,
+            Button(onClick = { pkce = Pkce.make(); LoginAttempts.add(pkce); errorText = null; showWeb = true }, enabled = !working,
                 modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
                 if (working) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                 else Text(L.t("Log ind med MitID"), style = MaterialTheme.typography.titleMedium)
