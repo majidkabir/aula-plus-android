@@ -10,7 +10,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.fragment.app.FragmentActivity
 import com.majidkabir.aulaplus.data.AppLock
 import com.majidkabir.aulaplus.data.AppState
-import com.majidkabir.aulaplus.data.Demo
 import com.majidkabir.aulaplus.ui.AulaRoot
 import com.majidkabir.aulaplus.ui.theme.AulaTheme
 import com.majidkabir.aulaplus.work.RefreshWorker
@@ -41,9 +40,6 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        // Debug builds only: `adb shell am start -n com.majidkabir.aulaplus/.MainActivity --ez demo true`
-        // opens the app with sample data, no MitID needed.
-        if (BuildConfig.DEBUG && intent?.getBooleanExtra("demo", false) == true) Demo.isOn = true
         intent?.getStringExtra("route")?.let { AppState.pendingRoute = it }
     }
 }
