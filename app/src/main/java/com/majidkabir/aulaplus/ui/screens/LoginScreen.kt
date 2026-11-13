@@ -174,9 +174,13 @@ fun MitIdWebView(url: String, onClose: () -> Unit, onCallback: (Uri) -> Unit) {
                         val scheme = u.scheme?.lowercase()
                         if (scheme == "intent") {
                             runCatching {
-                                context.startActivity(Intent.parseUri(u.toString(), Intent.URI_INTENT_SCHEME)
-                                    .addCategory(Intent.CATEGORY_BROWSABLE).setComponent(null).setSelector(null)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                // Only what a browser would do with an intent:// link: no explicit component or selector.
+                                val i = Intent.parseUri(u.toString(), Intent.URI_INTENT_SCHEME)
+                                i.addCategory(Intent.CATEGORY_BROWSABLE)
+                                i.component = null
+                                i.selector = null
+                                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(i)
                             }.onFailure { mitIdAppMissing(context) }
                             return true
                         }
