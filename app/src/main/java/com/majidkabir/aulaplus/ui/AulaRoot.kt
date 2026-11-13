@@ -93,7 +93,7 @@ fun MainNav(startRoute: String = AppState.tab.route) {
         AppState.pendingRoute?.let { route ->
             AppState.pendingRoute = null
             // Only our own notification routes; anything else (or a stale id) must not crash the app.
-            if (Regex("""(thread/\d+|post/\d+|album/\d+|vacations|notifications)""").matches(route)) runCatching { nav.open(route) }
+            if (Regex("""(thread/\d+|post/\d+|album/\d+|tagged/\d+|vacations|notifications)""").matches(route)) runCatching { nav.open(route) }
         }
     }
     CompositionLocalProvider(LocalNav provides nav) {
@@ -111,6 +111,7 @@ fun MainNav(startRoute: String = AppState.tab.route) {
             composable("posts") { PostsScreen() }
             composable("gallery") { GalleryScreen() }
             composable("album/{id}") { AlbumScreen(it.arguments?.getString("id")?.toIntOrNull() ?: 0) }
+            composable("tagged/{id}") { val id = it.arguments?.getString("id")?.toIntOrNull() ?: 0; AlbumScreen(-id, childId = id) }
             composable("notifications") { NotificationsScreen() }
             composable("dates") { ImportantDatesScreen() }
             composable("contacts") { ContactsScreen() }

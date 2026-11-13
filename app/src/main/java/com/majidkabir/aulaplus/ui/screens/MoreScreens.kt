@@ -84,6 +84,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import com.majidkabir.aulaplus.ui.components.childColor
+import kotlinx.coroutines.coroutineScope
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -159,7 +167,7 @@ fun MoreScreen() {
         item {
             MenuGroup(L.t("Skole")) {
                 MenuRow(L.t("Opslag"), { IconTile(Icons.Filled.Newspaper, Purple) }) { nav.open("posts") }
-                MenuRow(L.t("Galleri"), { IconTile(Icons.Filled.PhotoLibrary, Color(0xFFFF2D55)) }) { nav.open("gallery") }
+                MenuRow(L.t("Galleri"), { IconTile(Icons.Filled.PhotoLibrary, Color(0xFFFF2D55)) }, Repo.newGalleryCount) { nav.open("gallery") }
                 MenuRow(L.t("Vigtige datoer"), { IconTile(Icons.Filled.Star, Color(0xFFFFCC00)) }) { nav.open("dates") }
                 MenuRow(L.t("Dokumenter"), { IconTile(Icons.Filled.Description, Color(0xFF007AFF)) }) { nav.open("documents") }
                 MenuRow(L.t("Kontakter"), { IconTile(Icons.Filled.People, Color(0xFF34C759)) }) { nav.open("contacts") }
@@ -284,30 +292,70 @@ fun PostDetailScreen(id: Int) {
 
 private val galleryTints = listOf(Color(0xFFFF2D55), Color(0xFFFF9500), Color(0xFF30B0C7), Color(0xFFAF52DE), Color(0xFF5856D6), Color(0xFF34C759))
 
+/** Red "3 nye" pill for new photos. */
+@Composable
+fun NewBadge(count: Int, modifier: Modifier = Modifier) {
+    if (count <= 0) return
+    Text(L.t("%d nye", count), color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+        modifier = modifier.clip(CircleShape).background(Color(0xFFFF3B30)).padding(horizontal = 7.dp, vertical = 3.dp)
+            .semantics { contentDescription = L.t("%d nye billeder", count) })
+}
+
+@Composable
+private fun AlbumTile(title: String, subtitle: String, coverUrl: String?, tint: Color, newCount: Int, modifier: Modifier,
+                      placeholder: @Composable () -> Unit = { Icon(Icons.Filled.Collections, null, tint = tint, modifier = Modifier.size(36.dp)) }) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1.25f).clip(RoundedCornerShape(16.dp))
+            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.40f), tint.copy(alpha = 0.14f)))),
+            contentAlignment = Alignment.Center) {
+            if (coverUrl != null) AsyncImage(coverUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            else placeholder()
+            NewBadge(newCount, Modifier.align(Alignment.TopEnd).padding(6.dp))
+        }
+        Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 @Composable
 fun GalleryScreen() {
     val nav = LocalNav.current
-    LaunchedEffect(Unit) { Repo.albums.load(600) }
+    LaunchedEffect(Unit) {
+        launch { Repo.albums.load(600) }
+        launch { Repo.notifications.load(60) }
+    }
     val albums = Repo.albums.value ?: emptyList()
-    AulaScreen(title = L.t("Galleri"), onBack = { nav.back() }, large = true, refreshing = Repo.albums.isLoading, onRefresh = { Repo.albums.refresh() }) {
+    val children = AppState.children
+    AulaScreen(title = L.t("Galleri"), onBack = { nav.back() }, large = true, refreshing = Repo.albums.isLoading,
+        onRefresh = { coroutineScope { launch { Repo.notifications.refresh() }; Repo.albums.refresh() } }) {
         item { StaleBanner(Repo.albums.error, Repo.albums.savedAt) }
-        if (albums.isEmpty()) item { if (Repo.albums.isLoading) Loading() else EmptyState(L.t("Ingen albums"), Icons.Filled.PhotoLibrary) }
+        if (children.isNotEmpty()) {
+            item { SectionTitle(L.t("Billeder af dine børn")) }
+            children.chunked(2).forEach { row ->
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        row.forEach { c ->
+                            val media = Repo.taggedMedia(c.id)
+                            LaunchedEffect(c.id) { media.load(3600) }
+                            AlbumTile(L.t("Billeder af %s", c.firstName),
+                                media.value?.let { L.t("%d billeder", it.size) } ?: L.t("Tagget af personalet"),
+                                media.value?.firstOrNull()?.thumbUrl, childColor(c.id), Repo.newCount(childId = c.id),
+                                Modifier.weight(1f).clickable { nav.open("tagged/${c.id}") }) { ChildAvatar(c, 64.dp) }
+                        }
+                        if (row.size == 1) Box(Modifier.weight(1f))
+                    }
+                }
+            }
+            if (albums.isNotEmpty()) item { SectionTitle(L.t("Albums")) }
+        }
+        if (albums.isEmpty() && children.isEmpty()) item { if (Repo.albums.isLoading) Loading() else EmptyState(L.t("Ingen albums"), Icons.Filled.PhotoLibrary) }
         albums.chunked(2).forEach { row ->
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     row.forEach { a ->
-                        val tint = galleryTints[a.id % galleryTints.size]
-                        Column(Modifier.weight(1f).clickable { nav.open("album/${a.id}") }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(Modifier.fillMaxWidth().aspectRatio(1.25f).clip(RoundedCornerShape(16.dp))
-                                .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.40f), tint.copy(alpha = 0.14f)))),
-                                contentAlignment = Alignment.Center) {
-                                if (a.coverUrl != null) AsyncImage(a.coverUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                                else Icon(Icons.Filled.Collections, null, tint = tint, modifier = Modifier.size(36.dp))
-                            }
-                            Text(a.title, style = MaterialTheme.typography.titleSmall, maxLines = 2)
-                            Text(listOfNotNull(AulaDate.listDate(a.dateMs), a.count?.let { L.t("%d billeder", it) }).joinToString(" · "),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        AlbumTile(a.title, listOfNotNull(AulaDate.listDate(a.dateMs), a.count?.let { L.t("%d billeder", it) }).joinToString(" · "),
+                            a.coverUrl, galleryTints[a.id.mod(galleryTints.size)], Repo.newCount(albumId = a.id),
+                            Modifier.weight(1f).clickable { nav.open("album/${a.id}") })
                     }
                     if (row.size == 1) Box(Modifier.weight(1f))
                 }
@@ -317,25 +365,82 @@ fun GalleryScreen() {
 }
 
 @Composable
-fun AlbumScreen(albumId: Int) {
+private fun SectionTitle(text: String) {
+    Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
+}
+
+private sealed interface PhotoFilter {
+    data object All : PhotoFilter
+    data object New : PhotoFilter
+    data class Child(val id: Int) : PhotoFilter
+}
+
+/** An album, or with [childId] the child's own "Billeder af …" album. */
+@Composable
+fun AlbumScreen(albumId: Int, childId: Int? = null) {
     val nav = LocalNav.current
-    val media = Repo.media(albumId)
-    LaunchedEffect(albumId) { media.load(3600) }
-    val title = Repo.albums.value?.firstOrNull { it.id == albumId }?.title ?: L.t("Galleri")
+    val media = if (childId != null) Repo.taggedMedia(childId) else Repo.media(albumId)
+    val children = AppState.children
+    // Photos that were new when the album was opened; kept for this visit after Aula is told they're seen.
+    var newIds by remember { mutableStateOf(emptySet<Int>()) }
+    var filter by remember { mutableStateOf<PhotoFilter>(PhotoFilter.All) }
+    LaunchedEffect(albumId, childId) {
+        Repo.notifications.load(60)
+        media.load(if (childId == null) 3600 else 600)
+        // A new-photo notice means the cached list may be missing it.
+        val at = media.savedAt
+        if (Repo.newCount(albumId.takeIf { childId == null }, childId) > 0 && at != null && System.currentTimeMillis() - at > 30_000) media.refresh()
+        val all = media.value.orEmpty()
+        newIds = newIds + (Repo.newMediaIds intersect all.map { it.id }.toSet())
+        Repo.markSeen(albumId.takeIf { childId == null }, childId, all)
+    }
+    val title = if (childId != null) L.t("Billeder af %s", children.firstOrNull { it.id == childId }?.firstName ?: "")
+        else Repo.albums.value?.firstOrNull { it.id == albumId }?.title ?: L.t("Galleri")
     val all = media.value ?: emptyList()
+    val shown = when (val f = filter) {
+        PhotoFilter.All -> all
+        PhotoFilter.New -> all.filter { it.id in newIds }
+        is PhotoFilter.Child -> all.filter { it.isTagged(f.id) }
+    }
+    val newCount = all.count { it.id in newIds }
+    // In a child's own album every photo is that child's: no child chips there.
+    val kids = if (childId != null) emptyList() else children.mapNotNull { c -> all.count { it.isTagged(c.id) }.takeIf { it > 0 }?.let { c to it } }
     var viewing by remember { mutableStateOf<Int?>(null) }
     AulaScreen(title = title, onBack = { nav.back() }, refreshing = media.isLoading, onRefresh = { media.refresh() }, spacing = 3.dp) {
         item { StaleBanner(media.error, media.savedAt) }
+        if (newCount > 0 || kids.isNotEmpty()) item {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterPill(L.t("Alle (%d)", all.size), filter == PhotoFilter.All, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary) { filter = PhotoFilter.All }
+                if (newCount > 0) FilterPill(L.t("Nye (%d)", newCount), filter == PhotoFilter.New, Color(0xFFFF3B30)) {
+                    filter = if (filter == PhotoFilter.New) PhotoFilter.All else PhotoFilter.New
+                }
+                kids.forEach { (c, n) ->
+                    val f = PhotoFilter.Child(c.id)
+                    FilterPill("${c.firstName} ($n)", filter == f, childColor(c.id)) { filter = if (filter == f) PhotoFilter.All else f }
+                }
+            }
+        }
         if (all.isEmpty()) item { if (media.isLoading || media.value == null) Loading() else EmptyState(L.t("Ingen billeder"), Icons.Filled.PhotoLibrary) }
-        all.chunked(3).forEach { row ->
+        else if (shown.isEmpty()) item { EmptyState(L.t("Ingen billeder passer til filteret."), Icons.Filled.PhotoLibrary) }
+        shown.chunked(3).forEach { row ->
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     row.forEach { m ->
+                        val mine = if (childId != null) emptyList() else children.filter { m.isTagged(it.id) }
+                        val label = listOfNotNull(if (m.isVideo) L.t("Video") else L.t("Billede"), if (m.id in newIds) L.t("Ny") else null,
+                            m.tags.takeIf { it.isNotEmpty() }?.let { t -> L.t("Tagget: %s", t.joinToString(", ") { it.name }) }).joinToString(", ")
                         Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(6.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant).clickable { viewing = all.indexOf(m) },
+                            .background(MaterialTheme.colorScheme.surfaceVariant).clickable { viewing = shown.indexOf(m) }
+                            .clearAndSetSemantics { contentDescription = label; role = Role.Button },
                             contentAlignment = Alignment.Center) {
                             AsyncImage(m.thumbUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                            if (m.isVideo) Icon(Icons.Filled.PlayCircle, L.t("Afspil video"), tint = Color.White, modifier = Modifier.size(32.dp))
+                            if (m.isVideo) Icon(Icons.Filled.PlayCircle, null, tint = Color.White, modifier = Modifier.size(32.dp))
+                            if (m.id in newIds) Text(L.t("NY"), color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
+                                modifier = Modifier.align(Alignment.TopStart).padding(4.dp).clip(CircleShape).background(Color(0xFFFF3B30))
+                                    .padding(horizontal = 5.dp, vertical = 1.dp))
+                            if (mine.isNotEmpty()) Row(Modifier.align(Alignment.BottomStart).padding(4.dp), horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
+                                mine.forEach { ChildAvatar(it, 20.dp) }
+                            }
                         }
                     }
                     repeat(3 - row.size) { Box(Modifier.weight(1f)) }
@@ -343,7 +448,16 @@ fun AlbumScreen(albumId: Int) {
             }
         }
     }
-    viewing?.let { MediaViewer(all, it) { viewing = null } }
+    viewing?.let { MediaViewer(shown, it, children, newIds) { viewing = null } }
+}
+
+@Composable
+private fun FilterPill(title: String, selected: Boolean, color: Color, onColor: Color = Color.White, onClick: () -> Unit) {
+    Text(title, style = MaterialTheme.typography.labelLarge,
+        color = if (selected) onColor else MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.clip(CircleShape).background(if (selected) color else MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(role = Role.Tab, onClick = onClick).semantics { this.selected = selected }
+            .padding(horizontal = 14.dp, vertical = 7.dp))
 }
 
 private fun notificationLook(n: AulaNotification): Pair<ImageVector, Color> {
@@ -371,7 +485,8 @@ fun NotificationsScreen() {
             Column(Modifier.card(4.dp)) {
                 list.forEachIndexed { i, n ->
                     val (icon, color) = notificationLook(n)
-                    val route = n.threadId?.let { "thread/$it" } ?: n.albumId?.let { "album/$it" } ?: n.postId?.let { "post/$it" }
+                    val tagged = n.relatedChildId?.takeIf { n.isTaggedInMedia && AppState.children.any { c -> c.id == it } }
+                    val route = tagged?.let { "tagged/$it" } ?: n.threadId?.let { "thread/$it" } ?: n.albumId?.let { "album/$it" } ?: n.postId?.let { "post/$it" }
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Dims.rowRadius)).clickable(enabled = route != null) { route?.let(nav::open) }
                         .padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconTile(icon, color)

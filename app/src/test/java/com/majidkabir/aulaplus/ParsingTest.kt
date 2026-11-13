@@ -54,4 +54,10 @@ class ParsingTest {
         assertEquals("&unknown;", Html.decode("&unknown;"))
         assertEquals("<p>Hej &lt;3<br>fra os</p><p>Tak &amp; hilsen</p>", Html.fromPlain("Hej <3\nfra os\n\nTak & hilsen"))
     }
+
+    @Test fun taggedNotificationMediaId() {
+        assertEquals(123456, com.majidkabir.aulaplus.data.AulaNotification.mediaIdFromNotificationId("gallery:991-123456"))
+        assertEquals(null, com.majidkabir.aulaplus.data.AulaNotification.mediaIdFromNotificationId("gallery:991"))
+        assertEquals(null, com.majidkabir.aulaplus.data.AulaNotification.mediaIdFromNotificationId(null))
+    }
 }
