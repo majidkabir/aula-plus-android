@@ -165,10 +165,24 @@ fun MitIdWebView(url: String, onClose: () -> Unit, onCallback: (Uri) -> Unit) {
                             if (!done) { done = true; onCallback(u) }
                             return true
                         }
+                        // "Open MitID app" is a normal https link (appswitch.mitid.dk). A WebView would just load it,
+                        // so hand it to the MitID app. After approving, switch back to Aula+ and the login continues here.
+                        if (u.host?.lowercase() in MITID_APPSWITCH_HOSTS) {
+                            openMitIdApp(context, u)
+                            return true
+                        }
                         val scheme = u.scheme?.lowercase()
+                        if (scheme == "intent") {
+                            runCatching {
+                                context.startActivity(Intent.parseUri(u.toString(), Intent.URI_INTENT_SCHEME)
+                                    .addCategory(Intent.CATEGORY_BROWSABLE).setComponent(null).setSelector(null)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }.onFailure { mitIdAppMissing(context) }
+                            return true
+                        }
                         if (scheme != null && scheme !in setOf("http", "https", "about", "data", "blob")) {
-                            // MitID app hand-off.
                             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, u).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                                .onFailure { mitIdAppMissing(context) }
                             return true
                         }
                         return false
@@ -182,4 +196,19 @@ fun MitIdWebView(url: String, onClose: () -> Unit, onCallback: (Uri) -> Unit) {
             }
         }, modifier = Modifier.weight(1f))
     }
+}
+
+private val MITID_APPSWITCH_HOSTS = setOf("appswitch.mitid.dk", "appswitch.mitid.nets.eu", "appswitch-test.mitid.nets.eu")
+
+/** Opens the MitID app itself, never a browser (a browser would just show the same page again). */
+private fun openMitIdApp(ctx: android.content.Context, u: Uri) {
+    val intent = Intent(Intent.ACTION_VIEW, u).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (android.os.Build.VERSION.SDK_INT >= 30) intent.addFlags(Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER)
+    else intent.setPackage("dk.mitid.app.android")
+    runCatching { ctx.startActivity(intent) }.onFailure { mitIdAppMissing(ctx) }
+}
+
+private fun mitIdAppMissing(ctx: android.content.Context) {
+    android.widget.Toast.makeText(ctx, L.t("MitID-appen er ikke på denne telefon. Godkend i MitID-appen på din anden enhed."),
+        android.widget.Toast.LENGTH_LONG).show()
 }
