@@ -161,6 +161,9 @@ data class Media(
     val isVideo: Boolean = false,
     val title: String? = null,
     val tags: List<MediaTag> = emptyList(),
+    val description: String? = null,
+    /** Aula's `currentUserCanEditTags`: whether this user may tag people in the photo. */
+    val canEditTags: Boolean = false,
 ) {
     fun isTagged(childId: Int) = tags.any { it.id == childId }
 }

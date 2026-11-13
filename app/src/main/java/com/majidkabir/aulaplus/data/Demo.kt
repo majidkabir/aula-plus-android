@@ -83,7 +83,7 @@ object Demo {
             2 -> listOf(MediaTag(101, "Emma Ghafouri"), MediaTag(102, "Noah Ghafouri"))
             else -> emptyList()
         }
-        Media(i, isVideo = i == 7, tags = tags)
+        Media(i, isVideo = i == 7, tags = tags, canEditTags = true)
     }
 
     val albums get() = listOf(
