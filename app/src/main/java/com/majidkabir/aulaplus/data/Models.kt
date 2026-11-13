@@ -23,6 +23,8 @@ data class Session(
     val guardianUserId: String? = null,
     val widgetIds: Set<String> = emptySet(),
     val guardianProfileIds: List<Int> = emptyList(),
+    /** Widget id → name, as Aula shows it. */
+    val widgetNames: Map<String, String> = emptyMap(),
 )
 
 enum class PresenceStatus(val code: Int) {

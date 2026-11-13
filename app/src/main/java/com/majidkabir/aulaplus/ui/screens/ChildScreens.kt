@@ -43,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -348,8 +349,19 @@ fun WeekPlanScreen() {
             item { Column(Modifier.card(), verticalArrangement = Arrangement.spacedBy(12.dp)) { visibleTasks.forEach { TaskRow(it) } } }
         }
         if (!supported && Repo.session.value != null && visibleTasks.isEmpty()) {
-            item { EmptyState(L.t("Ugeplan ikke understøttet endnu"), Icons.Outlined.Description,
-                subtitle = L.t("Din skole bruger en ugeplan-udbyder, som Aula+ ikke kender endnu (understøtter Meebook og Min Uddannelse).")) }
+            val names = Repo.session.value?.widgetNames.orEmpty().values.sorted()
+            // Widgets that look like a week plan (by Aula's own name for them).
+            val planWidgets = names.filter { Regex("(?i)uge|plan|lektie|opgave|easyiq|meebook|docendo|huskeliste|forløb|skoleportal").containsMatchIn(it) }
+            item {
+                if (planWidgets.isEmpty()) EmptyState(L.t("Ingen ugeplan i Aula"), Icons.Outlined.Description,
+                    subtitle = L.t("Dine børns institution deler ingen ugeplan i Aula. Det er normalt for vuggestuer og børnehaver."))
+                else EmptyState(L.t("Ugeplanen kan ikke vises endnu"), Icons.Outlined.Description,
+                    subtitle = L.t("Skolen lægger ugeplanen i %s. Aula+ kan indtil videre kun vise Meebook og Min Uddannelse.", planWidgets.joinToString(", ")))
+            }
+            if (names.isNotEmpty()) item {
+                Text(L.t("Aula viser disse værktøjer: %s", names.joinToString(", ")), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
         } else if (plans.all { it.sections.isEmpty() }) {
             item { if (plan.isLoading) Loading() else EmptyState(L.t("Ingen ugeplan for denne uge"), Icons.Outlined.Description) }
         }

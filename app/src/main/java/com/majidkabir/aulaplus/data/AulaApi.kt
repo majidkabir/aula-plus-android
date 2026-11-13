@@ -203,9 +203,13 @@ object AulaApi {
                 if (children.none { it.id == child.id }) children += child
             }
         }
-        val widgets = ctx.obj("pageConfiguration").objs("widgetConfigurations")
+        val shown = ctx.obj("pageConfiguration").objs("widgetConfigurations")
             .filter { (it.str("aggregatedDisplayMode") ?: "Shown") == "Shown" }
-            .mapNotNull { it.obj("widget").str("widgetId") }.toSet()
+        val widgets = shown.mapNotNull { it.obj("widget").str("widgetId") }.toSet()
+        val widgetNames = shown.mapNotNull { w ->
+            val o = w.obj("widget")
+            o.str("widgetId")?.let { id -> o.str("name")?.takeIf { it.isNotBlank() }?.let { id to it } }
+        }.toMap()
         val guardianIds = profile.objs("institutionProfiles").mapNotNull { it.int("id") }
         val s = Session(
             displayName = profile.str("displayName") ?: "",
@@ -214,6 +218,7 @@ object AulaApi {
             guardianUserId = ctx.str("userId"),
             widgetIds = widgets,
             guardianProfileIds = guardianIds,
+            widgetNames = widgetNames,
         )
         session = s
         sessionReady = true
