@@ -210,6 +210,13 @@ object AulaApi {
             val o = w.obj("widget")
             o.str("widgetId")?.let { id -> o.str("name")?.takeIf { it.isNotBlank() }?.let { id to it } }
         }.toMap()
+        val widgetLinks = shown.mapNotNull { w ->
+            val o = w.obj("widget")
+            val id = o.str("widgetId") ?: return@mapNotNull null
+            val name = o.str("name")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val url = o.str("url")?.takeIf { it.startsWith("http") } ?: return@mapNotNull null
+            WidgetLink(id, name, url)
+        }.distinctBy { it.id }
         val guardianIds = profile.objs("institutionProfiles").mapNotNull { it.int("id") }
         val s = Session(
             displayName = profile.str("displayName") ?: "",
@@ -219,6 +226,7 @@ object AulaApi {
             widgetIds = widgets,
             guardianProfileIds = guardianIds,
             widgetNames = widgetNames,
+            widgetLinks = widgetLinks,
         )
         session = s
         sessionReady = true

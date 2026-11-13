@@ -318,6 +318,8 @@ object L {
         "Ugeplan" to "Week plan",
         "Ugeplan ikke understøttet endnu" to "Week plan not supported yet",
         "Ingen ugeplan i Aula" to "No week plan in Aula",
+        "Værktøjer i Aula" to "Tools in Aula",
+        "Billeder" to "Photos",
         "Dine børns institution deler ingen ugeplan i Aula. Det er normalt for vuggestuer og børnehaver." to "Your children's institution doesn't share a week plan in Aula. That's normal for nurseries and kindergartens.",
         "Ugeplanen kan ikke vises endnu" to "Week plan can't be shown yet",
         "Skolen lægger ugeplanen i %s. Aula+ kan indtil videre kun vise Meebook og Min Uddannelse." to "The school puts the week plan in %s. Aula+ can only show Meebook and Min Uddannelse so far.",

@@ -9,7 +9,7 @@ import com.majidkabir.aulaplus.core.TokenStore
 import com.majidkabir.aulaplus.widget.WidgetWriter
 
 enum class Phase { LAUNCHING, LOGGED_OUT, LOGGED_IN }
-enum class Tab { TODAY, MESSAGES, CALENDAR, WEEK_PLAN, MORE }
+enum class Tab { TODAY, MESSAGES, CALENDAR, WEEK_PLAN, PHOTOS, MORE }
 
 /** App-wide UI state (Compose snapshot state). */
 object AppState {

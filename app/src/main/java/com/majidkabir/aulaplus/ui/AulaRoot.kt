@@ -3,6 +3,8 @@ package com.majidkabir.aulaplus.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -68,7 +70,7 @@ val LocalNav = staticCompositionLocalOf<Nav> { error("No Nav") }
 val Tab.route: String
     get() = when (this) {
         Tab.TODAY -> "today"; Tab.MESSAGES -> "messages"; Tab.CALENDAR -> "calendar"
-        Tab.WEEK_PLAN -> "weekplan"; Tab.MORE -> "more"
+        Tab.WEEK_PLAN -> "weekplan"; Tab.PHOTOS -> "photos"; Tab.MORE -> "more"
     }
 
 @Composable
@@ -102,6 +104,7 @@ fun MainNav(startRoute: String = AppState.tab.route) {
             composable("messages") { MessagesScreen() }
             composable("calendar") { CalendarScreen() }
             composable("weekplan") { WeekPlanScreen() }
+            composable("photos") { GalleryScreen(asTab = true) }
             composable("more") { MoreScreen() }
             composable("thread/{id}") { ThreadScreen(it.arguments?.getString("id") ?: "") }
             composable("compose") { ComposeScreen() }
@@ -132,7 +135,9 @@ fun AulaBottomBar() {
         TabItem(nav, current, Tab.TODAY, L.t("I dag"), Icons.Filled.WbSunny, Icons.Outlined.WbSunny)
         TabItem(nav, current, Tab.MESSAGES, L.t("Beskeder"), Icons.AutoMirrored.Filled.Chat, Icons.AutoMirrored.Outlined.Chat, Repo.unreadCount)
         TabItem(nav, current, Tab.CALENDAR, L.t("Kalender"), Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth)
-        TabItem(nav, current, Tab.WEEK_PLAN, L.t("Ugeplan"), Icons.Filled.ListAlt, Icons.Outlined.ListAlt)
+        // No week plan in Aula (nurseries, kindergartens): the fourth tab shows photos instead.
+        if (Repo.session.value?.hasWeekPlan != false) TabItem(nav, current, Tab.WEEK_PLAN, L.t("Ugeplan"), Icons.Filled.ListAlt, Icons.Outlined.ListAlt)
+        else TabItem(nav, current, Tab.PHOTOS, L.t("Billeder"), Icons.Filled.PhotoLibrary, Icons.Outlined.PhotoLibrary, Repo.newGalleryCount)
         TabItem(nav, current, Tab.MORE, L.t("Mere"), Icons.Filled.MoreHoriz, Icons.Outlined.MoreHoriz)
     }
 }
