@@ -100,10 +100,7 @@ fun LoginScreen() {
     ThemedBackground {
         Column(Modifier.fillMaxSize().systemBarsPadding().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(Modifier.weight(1f))
-            Box(Modifier.size(96.dp).clip(RoundedCornerShape(28.dp)).background(Brush.linearGradient(listOf(t.brandLight, t.second))),
-                contentAlignment = Alignment.Center) {
-                Text("A+", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold)
-            }
+            AppMark()
             Spacer(Modifier.height(20.dp))
             Text("Aula+", style = MaterialTheme.typography.displaySmall)
             Text(L.t("Beskeder, kalender og ugeplan —\nhurtigt og overskueligt."), textAlign = TextAlign.Center,
@@ -184,33 +181,5 @@ fun MitIdWebView(url: String, onClose: () -> Unit, onCallback: (Uri) -> Unit) {
                 loadUrl(url)
             }
         }, modifier = Modifier.weight(1f))
-    }
-}
-
-@Composable
-fun LockScreen() {
-    val ctx = LocalContext.current
-    fun unlock() {
-        val activity = ctx as? FragmentActivity ?: run { AppState.isLocked = false; return }
-        val mgr = androidx.biometric.BiometricManager.from(ctx)
-        val auth = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or
-            androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
-        if (mgr.canAuthenticate(auth) != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) { AppState.isLocked = false; return }
-        val prompt = androidx.biometric.BiometricPrompt(activity, androidx.core.content.ContextCompat.getMainExecutor(ctx),
-            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) { AppState.isLocked = false }
-            })
-        prompt.authenticate(androidx.biometric.BiometricPrompt.PromptInfo.Builder()
-            .setTitle(L.t("Lås Aula+ op")).setAllowedAuthenticators(auth).build())
-    }
-    LaunchedEffect(Unit) { unlock() }
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Icon(Icons.Filled.Lock, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(L.t("Aula+ er låst"), style = MaterialTheme.typography.titleMedium)
-            Button(onClick = { unlock() }) {
-                Icon(Icons.Filled.Fingerprint, null); Spacer(Modifier.width(8.dp)); Text(L.t("Lås op"))
-            }
-        }
     }
 }

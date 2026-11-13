@@ -35,6 +35,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.majidkabir.aulaplus.core.L
+import com.majidkabir.aulaplus.data.AppLock
 import com.majidkabir.aulaplus.data.AppState
 import com.majidkabir.aulaplus.data.Phase
 import com.majidkabir.aulaplus.data.Repo
@@ -77,7 +78,7 @@ fun AulaRoot() {
         Phase.LOGGED_OUT -> LoginScreen()
         Phase.LOGGED_IN -> {
             MainNav()
-            if (AppState.isLocked) LockScreen()
+            if (AppLock.isLocked) LockScreen() else LockOfferDialog()
         }
     }
 }
