@@ -38,11 +38,9 @@ data class Session(
     val hasWeekPlan: Boolean
         get() = widgetIds.any { it in setOf(AulaConfig.WIDGET_MEEBOOK, AulaConfig.WIDGET_MU_UGEPLAN, AulaConfig.WIDGET_MU_SSO) } ||
             weekPlanWidgetNames.isNotEmpty()
-
-    private companion object {
-        val WEEK_PLAN_HINT = Regex("(?i)uge|plan|lektie|opgave|easyiq|meebook|docendo|huskeliste|forløb|skoleportal")
-    }
 }
+
+private val WEEK_PLAN_HINT = Regex("(?i)uge|plan|lektie|opgave|easyiq|meebook|docendo|huskeliste|forløb|skoleportal")
 
 /** A tool Aula shows on the parent's front page, with a link to open it. */
 @Serializable
