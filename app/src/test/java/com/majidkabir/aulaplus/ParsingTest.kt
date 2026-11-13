@@ -25,6 +25,18 @@ class ParsingTest {
         assertEquals(1771196400000L, AulaDate.parseDotNet("/Date(1771196400000-0000)/"))
     }
 
+    @Test fun loginAttemptsPreferMatchingState() {
+        com.majidkabir.aulaplus.core.LoginAttempts.store = mutableMapOf()
+        val a = Pkce.make(); val b = Pkce.make()
+        com.majidkabir.aulaplus.core.LoginAttempts.add(a)
+        com.majidkabir.aulaplus.core.LoginAttempts.add(b)
+        assertEquals(listOf(a.verifier, b.verifier), com.majidkabir.aulaplus.core.LoginAttempts.verifiers(a.state))
+        assertEquals(listOf(b.verifier, a.verifier), com.majidkabir.aulaplus.core.LoginAttempts.verifiers(null))
+        com.majidkabir.aulaplus.core.LoginAttempts.clear()
+        assertEquals(emptyList<String>(), com.majidkabir.aulaplus.core.LoginAttempts.verifiers(null))
+        com.majidkabir.aulaplus.core.LoginAttempts.store = null
+    }
+
     @Test fun multiDayEvents() {
         val start = AulaDate.parse("2026-12-21T00:00:00")!!
         val holiday = com.majidkabir.aulaplus.data.Event("h", "Juleferie", start, AulaDate.parse("2026-12-24T00:00:00")!!, allDay = true)
