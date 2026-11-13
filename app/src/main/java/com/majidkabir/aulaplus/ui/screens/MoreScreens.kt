@@ -56,6 +56,7 @@ import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -338,7 +339,7 @@ fun GalleryScreen() {
                             val media = Repo.taggedMedia(c.id)
                             LaunchedEffect(c.id) { media.load(3600) }
                             AlbumTile(L.t("Billeder af %s", c.firstName),
-                                media.value?.let { L.t("%d billeder", it.size) } ?: if (media.error != null) L.t("Kunne ikke hente") else L.t("Henter …"),
+                                media.value?.let { L.t(if (media.isPartial) "%d billeder …" else "%d billeder", it.size) } ?: if (media.error != null) L.t("Kunne ikke hente") else L.t("Henter …"),
                                 media.value?.firstOrNull()?.thumbUrl, childColor(c.id), Repo.newCount(childId = c.id),
                                 Modifier.weight(1f).clickable { nav.open("tagged/${c.id}") }) { ChildAvatar(c, 64.dp) }
                         }
@@ -408,6 +409,9 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
     var viewing by remember { mutableStateOf<Int?>(null) }
     AulaScreen(title = title, onBack = { nav.back() }, refreshing = media.isLoading, onRefresh = { media.refresh() }, spacing = 3.dp) {
         item { StaleBanner(media.error, media.savedAt) }
+        if (media.isLoading && media.value != null) item {
+            LoadProgress(all.size, if (media.isPartial) media.expected ?: Repo.albums.value?.firstOrNull { it.id == albumId }?.count else null)
+        }
         if (newCount > 0 || kids.isNotEmpty()) item {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterPill(L.t("Alle (%d)", all.size), filter == PhotoFilter.All, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary) { filter = PhotoFilter.All }
@@ -422,7 +426,11 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
         }
         if (all.isEmpty()) item {
             when {
-                media.isLoading || (media.value == null && media.error == null) -> Loading()
+                media.isLoading || (media.value == null && media.error == null) -> Column(Modifier.fillMaxWidth().padding(top = 40.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator()
+                    Text(L.t("Henter billeder …"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 media.value == null -> EmptyState(L.t("Kunne ikke hente"), Icons.Filled.PhotoLibrary)
                 else -> EmptyState(L.t("Ingen billeder"), Icons.Filled.PhotoLibrary)
             }
@@ -455,6 +463,23 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
         }
     }
     viewing?.let { MediaViewer(shown, it, children, newIds) { viewing = null } }
+}
+
+/** "Henter billeder … 48 af 429" with a bar; without a known total a spinner and "Opdaterer …". */
+@Composable
+private fun LoadProgress(loaded: Int, expected: Int?) {
+    if (expected != null && expected > 0) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            LinearProgressIndicator(progress = { (loaded.toFloat() / expected).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+            Text(L.t("Henter billeder … %d af %d", loaded, expected), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    } else {
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            Text(L.t("Opdaterer …"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 @Composable
