@@ -82,6 +82,22 @@ object Repo {
         }
     }
 
+    /** Tags or untags [child] in a photo, on Aula and in every cached album. Returns the updated photo. */
+    suspend fun setTagged(child: Child, tagged: Boolean, media: Media): Media {
+        val tags = media.tags.filterNot { it.id == child.id } + if (tagged) listOf(MediaTag(child.id, child.name)) else emptyList()
+        if (!Demo.isOn) AulaApi.setTags(media, tags.map { it.id })
+        val updated = media.copy(tags = tags)
+        albumMedia.forEach { (key, list) ->
+            if (key == -child.id) {
+                // The child's own album: add or drop the photo.
+                list.mutate { items -> items.filterNot { it.id == media.id }.let { if (tagged) listOf(updated) + it else it } }
+            } else {
+                list.mutate { items -> items.map { if (it.id == media.id) updated else it } }
+            }
+        }
+        return updated
+    }
+
     // region Gallery "new" markers (from Aula's gallery notifications)
 
     private val galleryNotifications get() = notifications.value.orEmpty().filter { it.isGallery }

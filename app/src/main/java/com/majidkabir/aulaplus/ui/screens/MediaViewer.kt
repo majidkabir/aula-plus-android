@@ -16,6 +16,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.PersonAddAlt1
+import androidx.compose.material.icons.filled.PersonRemove
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import com.majidkabir.aulaplus.data.Repo
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -67,8 +72,12 @@ import kotlinx.coroutines.launch
 /** Full-screen photo viewer: swipe between photos, play videos, save or share the current one. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MediaViewer(items: List<Media>, start: Int, children: List<Child> = emptyList(), newIds: Set<Int> = emptySet(), onClose: () -> Unit) {
+fun MediaViewer(initialItems: List<Media>, start: Int, children: List<Child> = emptyList(), newIds: Set<Int> = emptySet(), onClose: () -> Unit) {
     val ctx = LocalContext.current
+    // Local copy so a new tag shows at once.
+    var items by remember { mutableStateOf(initialItems) }
+    var tagMenu by remember { mutableStateOf(false) }
+    var tagging by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val pager = rememberPagerState(initialPage = start.coerceIn(0, (items.size - 1).coerceAtLeast(0))) { items.size }
     var sharing by remember { mutableStateOf(false) }
@@ -98,6 +107,32 @@ fun MediaViewer(items: List<Media>, start: Int, children: List<Child> = emptyLis
                 IconButton(onClick = onClose) { Icon(Icons.Filled.Close, L.t("Luk"), tint = Color.White) }
                 Text(if (items.isEmpty()) "" else "${pager.currentPage + 1} / ${items.size}", color = Color.White,
                     style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                val shown = items.getOrNull(pager.currentPage)
+                if (shown != null && shown.canEditTags && children.isNotEmpty()) Box {
+                    IconButton(enabled = !tagging, onClick = { tagMenu = true }) {
+                        if (tagging) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Icon(Icons.Filled.PersonAddAlt1, L.t("Tag barn"), tint = Color.White)
+                    }
+                    DropdownMenu(tagMenu, onDismissRequest = { tagMenu = false }) {
+                        children.forEach { c ->
+                            val on = shown.isTagged(c.id)
+                            DropdownMenuItem(
+                                text = { Text(if (on) L.t("Fjern tag af %s", c.firstName) else L.t("Tag %s", c.firstName)) },
+                                leadingIcon = { Icon(if (on) Icons.Filled.PersonRemove else Icons.Filled.PersonAddAlt1, null) },
+                                onClick = {
+                                    tagMenu = false
+                                    tagging = true
+                                    scope.launch {
+                                        runCatching { Repo.setTagged(c, !on, shown) }
+                                            .onSuccess { u -> items = items.map { if (it.id == u.id) u else it }; showInfo = true }
+                                            .onFailure { Toast.makeText(ctx, L.t("Kunne ikke ændre tag"), Toast.LENGTH_SHORT).show() }
+                                        tagging = false
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
                 IconButton(enabled = !sharing && items.isNotEmpty(), onClick = {
                     val m = items[pager.currentPage]
                     val url = m.fullUrl ?: m.thumbUrl ?: return@IconButton

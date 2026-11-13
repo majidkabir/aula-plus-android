@@ -627,7 +627,7 @@ object AulaApi {
                 m.firstStr("mediumThumbnailUrl", "thumbnailUrl", "smallThumbnailUrl", "largeThumbnailUrl") ?: m.obj("file").str("url"),
                 m.obj("file").str("url") ?: m.str("largeThumbnailUrl"),
                 (m.str("mediaType") ?: "").contains("video", true),
-                m.str("title")?.takeIf { it.isNotBlank() }, tags)
+                m.str("title")?.takeIf { it.isNotBlank() }, tags, m.str("description"), m.bool("currentUserCanEditTags") ?: false)
         }.distinctBy { it.id } // Aula lists an item once per child profile
     }
 
@@ -652,6 +652,20 @@ object AulaApi {
         "TaggedInMedia" -> L.t("Dit barn er tagget på et billede")
         "AlbumShared" -> L.t("Nyt album delt")
         else -> null
+    }
+
+    /** Replaces the people tagged in a photo, like Aula's web app (`gallery.updateMedia` with the full tag list). */
+    suspend fun setTags(media: Media, tagIds: List<Int>) {
+        call("gallery.updateMedia", body = buildJsonObject {
+            putJsonArray("media") {
+                add(buildJsonObject {
+                    put("id", media.id)
+                    putJsonArray("tags") { tagIds.forEach { add(JsonPrimitive(it)) } }
+                    put("title", media.title)
+                    put("description", media.description)
+                })
+            }
+        })
     }
 
     /** Marks notifications as seen (Aula deletes them, like the web app does). */
