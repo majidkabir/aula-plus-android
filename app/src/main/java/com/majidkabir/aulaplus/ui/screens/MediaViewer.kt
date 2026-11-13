@@ -125,7 +125,7 @@ fun MediaViewer(initialItems: List<Media>, start: Int, children: List<Child> = e
                                     scope.launch {
                                         runCatching { Repo.setTagged(c, !on, shown) }
                                             .onSuccess { u -> items = items.map { if (it.id == u.id) u else it }; showInfo = true }
-                                            .onFailure { Toast.makeText(ctx, L.t("Kunne ikke ændre tag"), Toast.LENGTH_SHORT).show() }
+                                            .onFailure { Toast.makeText(ctx, L.t("Kunne ikke ændre tag") + ": " + (it.message ?: ""), Toast.LENGTH_LONG).show() }
                                         tagging = false
                                     }
                                 },
