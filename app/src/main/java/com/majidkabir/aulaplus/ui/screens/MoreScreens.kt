@@ -338,7 +338,7 @@ fun GalleryScreen() {
                             val media = Repo.taggedMedia(c.id)
                             LaunchedEffect(c.id) { media.load(3600) }
                             AlbumTile(L.t("Billeder af %s", c.firstName),
-                                media.value?.let { L.t("%d billeder", it.size) } ?: L.t("Tagget af personalet"),
+                                media.value?.let { L.t("%d billeder", it.size) } ?: if (media.error != null) L.t("Kunne ikke hente") else L.t("Henter …"),
                                 media.value?.firstOrNull()?.thumbUrl, childColor(c.id), Repo.newCount(childId = c.id),
                                 Modifier.weight(1f).clickable { nav.open("tagged/${c.id}") }) { ChildAvatar(c, 64.dp) }
                         }
@@ -420,7 +420,13 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
                 }
             }
         }
-        if (all.isEmpty()) item { if (media.isLoading || media.value == null) Loading() else EmptyState(L.t("Ingen billeder"), Icons.Filled.PhotoLibrary) }
+        if (all.isEmpty()) item {
+            when {
+                media.isLoading || (media.value == null && media.error == null) -> Loading()
+                media.value == null -> EmptyState(L.t("Kunne ikke hente"), Icons.Filled.PhotoLibrary)
+                else -> EmptyState(L.t("Ingen billeder"), Icons.Filled.PhotoLibrary)
+            }
+        }
         else if (shown.isEmpty()) item { EmptyState(L.t("Ingen billeder passer til filteret."), Icons.Filled.PhotoLibrary) }
         shown.chunked(3).forEach { row ->
             item {

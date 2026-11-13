@@ -595,23 +595,40 @@ object AulaApi {
         return mediaList(d)
     }
 
-    /** Every photo [childId] is tagged in, across all albums (Aula's "user specific album"). */
-    suspend fun taggedMedia(childId: Int): List<Media> {
-        val pageSize = 100
+    /**
+     * Every photo [childId] is tagged in, across all albums. Asks Aula for the child's own album
+     * (`userSpecificAlbum`); if that fails or comes back empty, looks through the albums instead.
+     */
+    suspend fun taggedMedia(childId: Int, profileIds: List<Int>): List<Media> {
+        val first = runCatching { userSpecificMedia(childId) }
+        first.getOrNull()?.takeIf { it.isNotEmpty() }?.let { return it }
+        val scanned = scanAlbums(childId, profileIds)
+        if (scanned.isEmpty()) first.exceptionOrNull()?.let { throw it }
+        return scanned
+    }
+
+    private suspend fun userSpecificMedia(childId: Int): List<Media> {
+        val pageSize = 60
         val all = mutableListOf<Media>()
         val seen = mutableSetOf<Int>()
         var index = 0
-        repeat(30) {
+        for (i in 0 until 50) {
             val d = call("gallery.getMedia", listOf("userSpecificAlbum" to "true", "filterInstProfileIds[]" to "$childId",
-                "index" to "$index", "limit" to "$pageSize", "sortOn" to "uploadedAt", "orderDirection" to "desc", "filterBy" to "all"))
+                "index" to "$index", "limit" to "$pageSize", "filterBy" to "all"))
             val raw = (d as? JsonArray)?.objects() ?: d.asObj().objs("results")
             val page = mediaList(d).filter { seen.add(it.id) }
             all += page
             // `totalSize` is unreliable: stop on a short or repeated page.
-            if (raw.size < pageSize || page.isEmpty()) return all
+            if (raw.size < pageSize || page.isEmpty()) break
             index += raw.size
         }
-        return all
+        return all.filter { it.isTagged(childId) || it.tags.isEmpty() }
+    }
+
+    /** Photos tagged with [childId] in the newest albums, newest album first. */
+    private suspend fun scanAlbums(childId: Int, profileIds: List<Int>): List<Media> = coroutineScope {
+        albums(profileIds).map { a -> async { runCatching { media(a.id, profileIds) }.getOrDefault(emptyList()).filter { it.isTagged(childId) } } }
+            .awaitAll().flatten().distinctBy { it.id }
     }
 
     private fun mediaList(d: JsonElement?): List<Media> {
