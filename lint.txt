@@ -1,0 +1,342 @@
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:95: Warning: Field requires API level 28 (current min is 26): android.graphics.ImageDecoder#ALLOCATOR_SOFTWARE [InlinedApi]
+        decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:95: Warning: Field requires API level 28 (current min is 26): android.graphics.ImageDecoder#ALLOCATOR_SOFTWARE [InlinedApi]
+        decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:640: Warning: Field requires API level 28 (current min is 26): android.graphics.ImageDecoder#ALLOCATOR_SOFTWARE [InlinedApi]
+        decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:640: Warning: Field requires API level 28 (current min is 26): android.graphics.ImageDecoder#ALLOCATOR_SOFTWARE [InlinedApi]
+        decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "InlinedApi":
+   This check scans through all the Android API field references in the
+   application and flags certain constants, such as static final integers and
+   Strings, which were introduced in later versions. These will actually be
+   copied into the class files rather than being referenced, which means that
+   the value is available even when running on older devices. In some cases
+   that's fine, and in other cases it can result in a runtime crash or
+   incorrect behavior. It depends on the context, so consider the code
+   carefully and decide whether it's safe and can be suppressed or whether the
+   code needs to be guarded.
+
+   If you really want to use this API and don't need to support older devices
+   just set the minSdkVersion in your build.gradle or AndroidManifest.xml
+   files.
+
+   If your code is deliberately accessing newer APIs, and you have ensured
+   (e.g. with conditional execution) that this code will only ever be called
+   on a supported platform, then you can annotate your class or method with
+   the @TargetApi annotation specifying the local minimum SDK to apply, such
+   as @TargetApi(11), such that this check considers 11 rather than your
+   manifest file's minimum SDK as the required API level.
+
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:91: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder#createSource [NewApi]
+    val src = android.graphics.ImageDecoder.createSource(ctx.contentResolver, uri)
+                                            ~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:92: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder#decodeBitmap [NewApi]
+    val bmp = android.graphics.ImageDecoder.decodeBitmap(src) { decoder, info, _ ->
+                                            ~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:93: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder.ImageInfo#getSize [NewApi]
+        val scale = max.toFloat() / maxOf(info.size.width, info.size.height)
+                                               ~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:93: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder.ImageInfo#getSize [NewApi]
+        val scale = max.toFloat() / maxOf(info.size.width, info.size.height)
+                                                                ~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:94: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder#setTargetSize [NewApi]
+        if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+                                ~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:94: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder.ImageInfo#getSize [NewApi]
+        if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+                                                    ~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:94: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder.ImageInfo#getSize [NewApi]
+        if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+                                                                                       ~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:95: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder#setAllocator [NewApi]
+        decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                ~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:636: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder#createSource [NewApi]
+    val src = android.graphics.ImageDecoder.createSource(ctx.contentResolver, uri)
+                                            ~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:637: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder#decodeBitmap [NewApi]
+    return android.graphics.ImageDecoder.decodeBitmap(src) { decoder, info, _ ->
+                                         ~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:638: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder.ImageInfo#getSize [NewApi]
+        val scale = max.toFloat() / maxOf(info.size.width, info.size.height)
+                                               ~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:638: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder.ImageInfo#getSize [NewApi]
+        val scale = max.toFloat() / maxOf(info.size.width, info.size.height)
+                                                                ~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:639: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder#setTargetSize [NewApi]
+        if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+                                ~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:639: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder.ImageInfo#getSize [NewApi]
+        if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+                                                    ~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:639: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder.ImageInfo#getSize [NewApi]
+        if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+                                                                                       ~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:640: Error: Call requires API level 28 (current min is 26): android.graphics.ImageDecoder#setAllocator [NewApi]
+        decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                ~~~~~~~~~
+
+   Explanation for issues of type "NewApi":
+   This check scans through all the Android API calls in the application and
+   warns about any calls that are not available on all versions targeted by
+   this application (according to its minimum SDK attribute in the manifest).
+
+   If you really want to use this API and don't need to support older devices
+   just set the minSdkVersion in your build.gradle or AndroidManifest.xml
+   files.
+
+   If your code is deliberately accessing newer APIs, and you have ensured
+   (e.g. with conditional execution) that this code will only ever be called
+   on a supported platform, then you can annotate your class or method with
+   the @TargetApi annotation specifying the local minimum SDK to apply, such
+   as @TargetApi(11), such that this check considers 11 rather than your
+   manifest file's minimum SDK as the required API level.
+
+   If you are deliberately setting android: attributes in style definitions,
+   make sure you place this in a values-vNN folder in order to avoid running
+   into runtime conflicts on certain devices where manufacturers have added
+   custom attributes whose ids conflict with the new ones on later platforms.
+
+   Similarly, you can use tools:targetApi="11" in an XML file to indicate that
+   the element will only be inflated in an adequate context.
+
+/home/runner/work/aula-plus-android/aula-plus-android/app/build.gradle.kts:22: Warning: Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the android.os.Build.VERSION_CODES javadoc for details. [OldTargetApi]
+        targetSdk = 35
+        ~~~~~~~~~~~~~~
+
+   Explanation for issues of type "OldTargetApi":
+   When your application runs on a version of Android that is more recent than
+   your targetSdkVersion specifies that it has been tested with, various
+   compatibility modes kick in. This ensures that your application continues
+   to work, but it may look out of place. For example, if the targetSdkVersion
+   is less than 14, your app may get an option button in the UI.
+
+   To fix this issue, set the targetSdkVersion to the highest available value.
+   Then test your app to make sure everything works correctly. You may want to
+   consult the compatibility notes to see what changes apply to each version
+   you are adding support for:
+   https://developer.android.com/reference/android/os/Build.VERSION_CODES.html
+   as well as follow this guide:
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.
+   html
+
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.html
+
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/res/xml/aula_widget.xml:5: Warning: Attribute targetCellWidth is only used in API level 31 and higher (current min is 26) [UnusedAttribute]
+    android:targetCellWidth="3"
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/res/xml/aula_widget.xml:6: Warning: Attribute targetCellHeight is only used in API level 31 and higher (current min is 26) [UnusedAttribute]
+    android:targetCellHeight="2"
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "UnusedAttribute":
+   This check finds attributes set in XML files that were introduced in a
+   version newer than the oldest version targeted by your application (with
+   the minSdkVersion attribute).
+
+   This is not an error; the application will simply ignore the attribute.
+   However, if the attribute is important to the appearance or functionality
+   of your application, you should consider finding an alternative way to
+   achieve the same result with only available attributes, and then you can
+   optionally create a copy of the layout in a layout-vNN folder which will be
+   used on API NN or higher where you can take advantage of the newer
+   attribute.
+
+   Note: This check does not only apply to attributes. For example, some tags
+   can be unused too, such as the new <tag> element in layouts introduced in
+   API 21.
+
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:4: Warning: A newer version of com.android.application than 8.7.3 is available: 9.5.1 [AndroidGradlePluginVersion]
+agp = "8.7.3"
+      ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:4: Warning: A newer version of com.android.application than 8.7.3 is available: 9.5.1 [AndroidGradlePluginVersion]
+agp = "8.7.3"
+      ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:4: Warning: A newer version of com.android.application than 8.7.3 is available: 9.5.1 [AndroidGradlePluginVersion]
+agp = "8.7.3"
+      ~~~~~~~
+
+   Explanation for issues of type "AndroidGradlePluginVersion":
+   This detector looks for usage of the Android Gradle Plugin where the
+   version you are using is not the current stable release. Using older
+   versions is fine, and there are cases where you deliberately want to stick
+   with an older version. However, you may simply not be aware that a more
+   recent version is available, and that is what this lint check helps find.
+
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:6: Warning: A newer version of androidx.compose:compose-bom than 2024.12.01 is available: 2026.09.00 [GradleDependency]
+composeBom = "2024.12.01"
+             ~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:6: Warning: A newer version of androidx.compose:compose-bom than 2024.12.01 is available: 2026.09.00 [GradleDependency]
+composeBom = "2024.12.01"
+             ~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:6: Warning: A newer version of androidx.compose:compose-bom than 2024.12.01 is available: 2026.09.00 [GradleDependency]
+composeBom = "2024.12.01"
+             ~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:7: Warning: A newer version of androidx.activity:activity-compose than 1.9.3 is available: 1.13.0 [GradleDependency]
+activityCompose = "1.9.3"
+                  ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:7: Warning: A newer version of androidx.activity:activity-compose than 1.9.3 is available: 1.13.0 [GradleDependency]
+activityCompose = "1.9.3"
+                  ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:7: Warning: A newer version of androidx.activity:activity-compose than 1.9.3 is available: 1.13.0 [GradleDependency]
+activityCompose = "1.9.3"
+                  ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:8: Warning: A newer version of androidx.core:core-ktx than 1.15.0 is available: 1.19.1 [GradleDependency]
+coreKtx = "1.15.0"
+          ~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:8: Warning: A newer version of androidx.core:core-ktx than 1.15.0 is available: 1.19.1 [GradleDependency]
+coreKtx = "1.15.0"
+          ~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:8: Warning: A newer version of androidx.core:core-ktx than 1.15.0 is available: 1.19.1 [GradleDependency]
+coreKtx = "1.15.0"
+          ~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:9: Warning: A newer version of androidx.lifecycle:lifecycle-process than 2.8.7 is available: 2.11.0 [GradleDependency]
+lifecycle = "2.8.7"
+            ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:9: Warning: A newer version of androidx.lifecycle:lifecycle-process than 2.8.7 is available: 2.11.0 [GradleDependency]
+lifecycle = "2.8.7"
+            ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:9: Warning: A newer version of androidx.lifecycle:lifecycle-process than 2.8.7 is available: 2.11.0 [GradleDependency]
+lifecycle = "2.8.7"
+            ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:9: Warning: A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.0 [GradleDependency]
+lifecycle = "2.8.7"
+            ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:9: Warning: A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.0 [GradleDependency]
+lifecycle = "2.8.7"
+            ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:9: Warning: A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.0 [GradleDependency]
+lifecycle = "2.8.7"
+            ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:9: Warning: A newer version of androidx.lifecycle:lifecycle-runtime-ktx than 2.8.7 is available: 2.11.0 [GradleDependency]
+lifecycle = "2.8.7"
+            ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:9: Warning: A newer version of androidx.lifecycle:lifecycle-runtime-ktx than 2.8.7 is available: 2.11.0 [GradleDependency]
+lifecycle = "2.8.7"
+            ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:9: Warning: A newer version of androidx.lifecycle:lifecycle-runtime-ktx than 2.8.7 is available: 2.11.0 [GradleDependency]
+lifecycle = "2.8.7"
+            ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:10: Warning: A newer version of androidx.navigation:navigation-compose than 2.8.5 is available: 2.10.2 [GradleDependency]
+navigation = "2.8.5"
+             ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:10: Warning: A newer version of androidx.navigation:navigation-compose than 2.8.5 is available: 2.10.2 [GradleDependency]
+navigation = "2.8.5"
+             ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:10: Warning: A newer version of androidx.navigation:navigation-compose than 2.8.5 is available: 2.10.2 [GradleDependency]
+navigation = "2.8.5"
+             ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:14: Warning: A newer version of androidx.security:security-crypto than 1.1.0-alpha06 is available: 1.1.0 [GradleDependency]
+securityCrypto = "1.1.0-alpha06"
+                 ~~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:14: Warning: A newer version of androidx.security:security-crypto than 1.1.0-alpha06 is available: 1.1.0 [GradleDependency]
+securityCrypto = "1.1.0-alpha06"
+                 ~~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:14: Warning: A newer version of androidx.security:security-crypto than 1.1.0-alpha06 is available: 1.1.0 [GradleDependency]
+securityCrypto = "1.1.0-alpha06"
+                 ~~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:15: Warning: A newer version of androidx.work:work-runtime-ktx than 2.10.0 is available: 2.12.0 [GradleDependency]
+work = "2.10.0"
+       ~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:15: Warning: A newer version of androidx.work:work-runtime-ktx than 2.10.0 is available: 2.12.0 [GradleDependency]
+work = "2.10.0"
+       ~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:15: Warning: A newer version of androidx.work:work-runtime-ktx than 2.10.0 is available: 2.12.0 [GradleDependency]
+work = "2.10.0"
+       ~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:17: Warning: A newer version of androidx.glance:glance-appwidget than 1.1.1 is available: 1.2.0 [GradleDependency]
+glance = "1.1.1"
+         ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:17: Warning: A newer version of androidx.glance:glance-appwidget than 1.1.1 is available: 1.2.0 [GradleDependency]
+glance = "1.1.1"
+         ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:17: Warning: A newer version of androidx.glance:glance-appwidget than 1.1.1 is available: 1.2.0 [GradleDependency]
+glance = "1.1.1"
+         ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:17: Warning: A newer version of androidx.glance:glance-material3 than 1.1.1 is available: 1.2.0 [GradleDependency]
+glance = "1.1.1"
+         ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:17: Warning: A newer version of androidx.glance:glance-material3 than 1.1.1 is available: 1.2.0 [GradleDependency]
+glance = "1.1.1"
+         ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:17: Warning: A newer version of androidx.glance:glance-material3 than 1.1.1 is available: 1.2.0 [GradleDependency]
+glance = "1.1.1"
+         ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:22: Warning: A newer version of androidx.fragment:fragment-ktx than 1.8.5 is available: 1.9.1 [GradleDependency]
+fragment = "1.8.5"
+           ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:22: Warning: A newer version of androidx.fragment:fragment-ktx than 1.8.5 is available: 1.9.1 [GradleDependency]
+fragment = "1.8.5"
+           ~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/gradle/libs.versions.toml:22: Warning: A newer version of androidx.fragment:fragment-ktx than 1.8.5 is available: 1.9.1 [GradleDependency]
+fragment = "1.8.5"
+           ~~~~~~~
+
+   Explanation for issues of type "GradleDependency":
+   This detector looks for usages of libraries where the version you are using
+   is not the current stable release. Using older versions is fine, and there
+   are cases where you deliberately want to stick with an older version.
+   However, you may simply not be aware that a more recent version is
+   available, and that is what this lint check helps find.
+
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/AndroidManifest.xml:14: Warning: The attribute android:dataExtractionRules only applies for Android 12 and higher; since minSdkVersion is API 26 you should also set android:fullBackupContent [DataExtractionRules]
+        android:dataExtractionRules="@xml/data_extraction_rules"
+                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "DataExtractionRules":
+   Before Android 12, the attributes android:allowBackup and
+   android:fullBackupContent were used to configure all forms of backup,
+   including cloud backups, device-to-device transfers and adb backup.
+
+   In Android 12 and higher, these attributes have been deprecated and will
+   only apply to cloud backups. You should instead use the attribute
+   android:dataExtractionRules, specifying an @xml resource that configures
+   which files to back up, for cloud backups and for device-to-device
+   transfers, separately. If your minSdkVersion supports older versions,
+   you'll still want to specify an android:fullBackupContent resource if the
+   default behavior is not right for your app.
+
+   https://developer.android.com/about/versions/12/backup-restore#xml-changes
+   https://goo.gle/DataExtractionRules
+
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/data/AppLock.kt:46: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var promptRequest by mutableStateOf(0)
+                         ~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/components/Components.kt:418: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var i by remember(urls) { mutableStateOf(0) }
+                              ~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:272: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var uploaded by remember { mutableStateOf(0) }
+                               ~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/CreateScreens.kt:340: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var uploaded by remember { mutableStateOf(0) }
+                               ~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/GroupsScreens.kt:106: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var tab by remember { mutableStateOf(0) }
+                          ~~~~~~~~~~~~~~
+/home/runner/work/aula-plus-android/aula-plus-android/app/src/main/java/com/majidkabir/aulaplus/ui/screens/MoreScreens.kt:840: Information: Prefer mutableIntStateOf instead of mutableStateOf [AutoboxingStateCreation from androidx.compose.runtime]
+    var tab by remember { mutableStateOf(0) }
+                          ~~~~~~~~~~~~~~
+
+   Explanation for issues of type "AutoboxingStateCreation":
+   Calling mutableStateOf<T>() when T is either backed by a primitive type on
+   the JVM or is a value class results in a state implementation that requires
+   all state values to be boxed. This usually causes an additional allocation
+   for each state write, and adds some additional work to auto-unbox values
+   when reading the value of the state. Instead, prefer to use a specialized
+   primitive state implementation for Int, Long, Float, and Double when the
+   state does not need to track null values and does not override the default
+   SnapshotMutationPolicy. See mutableIntStateOf(), mutableLongStateOf(),
+   mutableFloatStateOf(), and mutableDoubleStateOf() for more information.
+
+   Vendor: Jetpack Compose
+   Identifier: androidx.compose.runtime
+   Feedback: https://issuetracker.google.com/issues/new?component=612128
+
+16 errors, 47 warnings
