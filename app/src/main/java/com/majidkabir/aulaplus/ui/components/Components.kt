@@ -424,3 +424,15 @@ fun MediaThumb(m: Media, modifier: Modifier = Modifier, contentScale: ContentSca
         onError = { if (i < urls.lastIndex) i++ else onAllFailed?.invoke() },
     )
 }
+
+/** My own picture from Aula, or my initials. */
+@androidx.compose.runtime.Composable
+fun MeAvatar(color: Color, size: Dp = 32.dp) {
+    val s = com.majidkabir.aulaplus.data.Repo.session.value
+    val url = s?.pictureUrl
+    if (url != null) coil.compose.SubcomposeAsyncImage(url, null,
+        androidx.compose.ui.Modifier.size(size).clip(androidx.compose.foundation.shape.CircleShape),
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        loading = { InitialsAvatar(s.displayName, color, size) }, error = { InitialsAvatar(s.displayName, color, size) })
+    else InitialsAvatar(s?.displayName ?: "", color, size)
+}

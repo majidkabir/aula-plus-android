@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.ui.components.MeAvatar
 import com.majidkabir.aulaplus.data.ParentTaskFinder
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.foundation.background
@@ -124,7 +125,7 @@ fun TodayScreen() {
         title = L.t("I dag"),
         actions = {
             IconButton(onClick = { nav.open("settings") }, modifier = Modifier.semantics { contentDescription = L.t("Profil og indstillinger") }) {
-                InitialsAvatar(Repo.session.value?.displayName ?: "", ThemeStore.theme.brandLight, 34.dp)
+                MeAvatar(ThemeStore.theme.brandLight, 34.dp)
             }
         },
         refreshing = Repo.presence.isLoading,

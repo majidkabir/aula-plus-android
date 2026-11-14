@@ -208,7 +208,11 @@ fun MyProfileScreen() {
                 val (bmp, jpeg) = withContext(Dispatchers.IO) { squareJpeg(ctx, uri) }
                 picture = bmp
                 if (!Demo.isOn) AulaApi.uploadProfilePicture(jpeg, first, true)
-            }.onSuccess { note = L.t("Profilbillede skiftet") }
+            }.onSuccess {
+                note = L.t("Profilbillede skiftet")
+                // The new picture shows on the front page and in settings once the session is fetched again.
+                if (!Demo.isOn) { AulaApi.invalidateSession(); com.majidkabir.aulaplus.data.Repo.session.refresh() }
+            }
                 .onFailure { picture = null; error = L.t("Billedet blev ikke skiftet: %s", it.message ?: "") }
             busy = false
         }
