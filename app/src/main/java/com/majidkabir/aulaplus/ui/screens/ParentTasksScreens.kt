@@ -88,7 +88,7 @@ fun ParentTasksScreen() {
         }
         item {
             Text(if (ParentTaskFinder.usesAI) L.t("Fundet af Gemini Nano på telefonen. Beskederne sendes ingen steder hen. Tjek altid den oprindelige besked.")
-                else L.t("Fundet ud fra nøgleord som \"husk\", \"medbring\" og \"senest\". Alt sker på telefonen."),
+                else L.t("Fundet i beskeder og opslag, der fx siger \"husk\" eller \"medbring\". Alt sker på telefonen. Tjek altid den oprindelige besked."),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
         }
     }
