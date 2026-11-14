@@ -130,6 +130,7 @@ import com.majidkabir.aulaplus.ui.components.Loading
 import com.majidkabir.aulaplus.ui.components.SectionTitle
 import com.majidkabir.aulaplus.ui.components.StaleBanner
 import com.majidkabir.aulaplus.ui.components.card
+import com.majidkabir.aulaplus.ui.components.aulaImage
 import com.majidkabir.aulaplus.ui.components.openSafely
 import com.majidkabir.aulaplus.ui.theme.AppTheme
 import com.majidkabir.aulaplus.ui.theme.ThemeStore
@@ -315,13 +316,14 @@ fun NewBadge(count: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun AlbumTile(title: String, subtitle: String, coverUrl: String?, tint: Color, newCount: Int, modifier: Modifier,
+private fun AlbumTile(title: String, subtitle: String, coverUrl: String?, tint: Color, newCount: Int, modifier: Modifier, coverKey: String? = null,
                       placeholder: @Composable () -> Unit = { Icon(Icons.Filled.Collections, null, tint = tint, modifier = Modifier.size(36.dp)) }) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.fillMaxWidth().aspectRatio(1.25f).clip(RoundedCornerShape(16.dp))
             .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.40f), tint.copy(alpha = 0.14f)))),
             contentAlignment = Alignment.Center) {
-            if (coverUrl != null) AsyncImage(coverUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            if (coverUrl != null) AsyncImage(aulaImage(LocalContext.current, coverKey ?: coverUrl.substringBefore('?'), coverUrl), null,
+                Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else placeholder()
             NewBadge(newCount, Modifier.align(Alignment.TopEnd).padding(6.dp))
         }
@@ -354,7 +356,8 @@ fun GalleryScreen(asTab: Boolean = false) {
                             AlbumTile(L.t("Billeder af %s", c.firstName),
                                 media.value?.let { L.t(if (media.isPartial) "%d billeder …" else "%d billeder", it.size) } ?: if (media.isLoading) L.t("Henter …") else L.t("Alle billeder af %s", c.firstName),
                                 media.value?.firstOrNull()?.thumbUrl, childColor(c.id), Repo.newCount(childId = c.id),
-                                Modifier.weight(1f).clickable { nav.open("tagged/${c.id}") }) { ChildAvatar(c, 64.dp) }
+                                Modifier.weight(1f).clickable { nav.open("tagged/${c.id}") },
+                                coverKey = media.value?.firstOrNull()?.let { "t${it.id}" }) { ChildAvatar(c, 64.dp) }
                         }
                         if (row.size == 1) Box(Modifier.weight(1f))
                     }
@@ -369,7 +372,7 @@ fun GalleryScreen(asTab: Boolean = false) {
                     row.forEach { a ->
                         AlbumTile(a.title, listOfNotNull(AulaDate.listDate(a.dateMs), a.count?.let { L.t("%d billeder", it) }).joinToString(" · "),
                             a.coverUrl, galleryTints[a.id.mod(galleryTints.size)], Repo.newCount(albumId = a.id),
-                            Modifier.weight(1f).clickable { nav.open("album/${a.id}") })
+                            Modifier.weight(1f).clickable { nav.open("album/${a.id}") }, coverKey = "c${a.id}")
                     }
                     if (row.size == 1) Box(Modifier.weight(1f))
                 }
@@ -401,7 +404,9 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
     LaunchedEffect(albumId, childId) {
         // Photos first; the "new" markers load alongside instead of before them.
         val notices = launch { Repo.notifications.load(120) }
-        media.load(if (childId == null) 3600 else 600)
+        // The cached list shows at once; it's refreshed in the background after 15 minutes,
+        // when Aula's signed photo URLs may have expired.
+        media.load(900)
         notices.join()
         // A new-photo notice means the cached list may be missing it.
         val at = media.savedAt
@@ -422,6 +427,13 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
     // In a child's own album every photo is that child's: no child chips there.
     val kids = if (childId != null) emptyList() else children.mapNotNull { c -> all.count { it.isTagged(c.id) }.takeIf { it > 0 }?.let { c to it } }
     var viewing by remember { mutableStateOf<Int?>(null) }
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // A thumbnail couldn't load: the cached list's signed URLs have expired. Fetch fresh ones once.
+    var refreshedForExpired by remember { mutableStateOf(false) }
+    val urlsExpired: () -> Unit = {
+        if (!refreshedForExpired && !media.isLoading) { refreshedForExpired = true; scope.launch { media.refresh() } }
+    }
     AulaScreen(title = title, onBack = { nav.back() }, refreshing = media.isLoading, onRefresh = { media.refresh() }, spacing = 3.dp) {
         item { StaleBanner(media.error, media.savedAt) }
         if (media.isLoading && media.value != null) item {
@@ -462,7 +474,7 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
                             .background(MaterialTheme.colorScheme.surfaceVariant).clickable { viewing = shown.indexOf(m) }
                             .clearAndSetSemantics { contentDescription = label; role = Role.Button },
                             contentAlignment = Alignment.Center) {
-                            AsyncImage(m.thumbUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            AsyncImage(aulaImage(ctx, "t${m.id}", m.thumbUrl, onError = urlsExpired), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                             if (m.isVideo) Icon(Icons.Filled.PlayCircle, null, tint = Color.White, modifier = Modifier.size(32.dp))
                             if (m.id in newIds) Text(L.t("NY"), color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
                                 modifier = Modifier.align(Alignment.TopStart).padding(4.dp).clip(CircleShape).background(Color(0xFFFF3B30))
