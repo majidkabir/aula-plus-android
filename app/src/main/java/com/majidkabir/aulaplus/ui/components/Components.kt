@@ -22,6 +22,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import com.majidkabir.aulaplus.ui.screens.MediaViewer
+import com.majidkabir.aulaplus.data.Media
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AttachFile
@@ -305,8 +310,10 @@ fun AttachmentList(attachments: List<Attachment>, modifier: Modifier = Modifier)
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf<Attachment?>(null) }
+    val photos = attachments.mapNotNull { it.media }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        attachments.forEach { a ->
+        if (photos.isNotEmpty()) PhotoGrid(photos)
+        attachments.filter { it.media == null }.forEach { a ->
             val icon = when {
                 a.isLink -> Icons.Default.Link
                 a.name.endsWith(".pdf", true) -> Icons.Default.PictureAsPdf
@@ -352,3 +359,50 @@ val ScreenPadding = PaddingValues(start = Dims.pad, end = Dims.pad, bottom = 24.
 
 @Composable
 fun Gap(h: Dp = Dims.gap) = Spacer(Modifier.width(1.dp).padding(top = h))
+
+/**
+ * Photos attached to a post or message, shown inline. Tapping opens the photo viewer,
+ * unless [interactive] is false (a preview inside a card that opens the post itself).
+ */
+@Composable
+fun PhotoGrid(photos: List<Media>, modifier: Modifier = Modifier, maxShown: Int = 6, interactive: Boolean = true) {
+    if (photos.isEmpty()) return
+    var viewing by remember { mutableStateOf<Int?>(null) }
+    val shown = photos.take(maxShown)
+    val extra = photos.size - shown.size
+    val cols = when (shown.size) { 1 -> 1; 2, 4 -> 2; else -> 3 }
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        shown.withIndex().chunked(cols).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                row.forEach { (i, m) ->
+                    PhotoTile(m, extra = if (i == shown.lastIndex) extra else 0, large = shown.size == 1,
+                        modifier = Modifier.weight(1f).aspectRatio(if (shown.size == 1) 4f / 3f else 1f)
+                            .then(if (interactive) Modifier.clickable { viewing = i } else Modifier))
+                }
+                repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+    viewing?.let { MediaViewer(photos, it, AppState.children) { viewing = null } }
+}
+
+@Composable
+private fun PhotoTile(m: Media, extra: Int, large: Boolean, modifier: Modifier) {
+    val ctx = LocalContext.current
+    Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+        SubcomposeAsyncImage(
+            model = aulaImage(ctx, if (large) "m${m.id}" else "t${m.id}", if (large) m.fullUrl ?: m.thumbUrl else m.thumbUrl ?: m.fullUrl),
+            contentDescription = m.title ?: L.t("Billede"),
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+            loading = { Icon(Icons.Default.Image, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+            error = { Icon(Icons.Default.Image, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+        )
+        if (m.isVideo) Icon(Icons.Default.PlayCircle, null, tint = Color.White, modifier = Modifier.size(40.dp))
+        if (extra > 0) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                Text("+$extra", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}

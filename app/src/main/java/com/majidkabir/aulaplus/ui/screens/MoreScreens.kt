@@ -123,6 +123,7 @@ import com.majidkabir.aulaplus.ui.AulaBottomBar
 import com.majidkabir.aulaplus.ui.LocalNav
 import com.majidkabir.aulaplus.ui.NavCache
 import com.majidkabir.aulaplus.ui.components.AttachmentList
+import com.majidkabir.aulaplus.ui.components.PhotoGrid
 import com.majidkabir.aulaplus.ui.components.ChildAvatar
 import com.majidkabir.aulaplus.ui.components.CountBadge
 import com.majidkabir.aulaplus.ui.components.Dims
@@ -227,7 +228,10 @@ fun PostCard(p: Post, compact: Boolean, onClick: (() -> Unit)? = null) {
         if (compact) {
             Text(Html.plain(p.html), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3,
                 overflow = TextOverflow.Ellipsis)
-            if (p.attachments.isNotEmpty()) Text("📎 ${p.attachments.size}", style = MaterialTheme.typography.bodySmall)
+            val photos = p.attachments.mapNotNull { it.media }
+            if (photos.isNotEmpty()) PhotoGrid(photos, maxShown = 3, interactive = false)
+            val files = p.attachments.size - photos.size
+            if (files > 0) Text("📎 $files", style = MaterialTheme.typography.bodySmall)
         } else {
             HorizontalDivider()
             HtmlText(p.html)
