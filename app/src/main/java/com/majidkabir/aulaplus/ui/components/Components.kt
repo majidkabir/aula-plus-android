@@ -391,7 +391,7 @@ private fun PhotoTile(m: Media, extra: Int, large: Boolean, modifier: Modifier) 
     val ctx = LocalContext.current
     Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
         SubcomposeAsyncImage(
-            model = aulaImage(ctx, if (large) "m${m.id}" else "t${m.id}", if (large) m.fullUrl ?: m.thumbUrl else m.thumbUrl ?: m.fullUrl),
+            model = aulaImage(ctx, if (large) "m${m.id}" else "t${m.id}", if (large) m.fullUrl ?: m.thumbUrl else m.scanUrl ?: m.thumbUrl ?: m.fullUrl),
             contentDescription = m.title ?: L.t("Billede"),
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
@@ -405,4 +405,22 @@ private fun PhotoTile(m: Media, extra: Int, large: Boolean, modifier: Modifier) 
             }
         }
     }
+}
+
+/**
+ * A photo's thumbnail. Aula's small thumbnail is missing for some albums, so on an error it tries
+ * the bigger versions; [onAllFailed] runs only when none load (e.g. the signed URLs expired).
+ */
+@Composable
+fun MediaThumb(m: Media, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop, onAllFailed: (() -> Unit)? = null) {
+    val ctx = LocalContext.current
+    val urls = remember(m.id, m.thumbUrl, m.scanUrl, m.fullUrl) { listOfNotNull(m.thumbUrl, m.scanUrl, m.fullUrl).distinct() }
+    var i by remember(urls) { mutableStateOf(0) }
+    coil.compose.AsyncImage(
+        model = aulaImage(ctx, "t${m.id}", urls.getOrNull(i)),
+        contentDescription = null,
+        modifier = modifier,
+        contentScale = contentScale,
+        onError = { if (i < urls.lastIndex) i++ else onAllFailed?.invoke() },
+    )
 }

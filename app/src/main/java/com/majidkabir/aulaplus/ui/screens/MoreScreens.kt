@@ -2,6 +2,7 @@
 
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.ui.components.MediaThumb
 import com.majidkabir.aulaplus.data.PostFilter
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Bookmark
@@ -524,7 +525,7 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
                             .background(MaterialTheme.colorScheme.surfaceVariant).clickable { viewing = shown.indexOf(m) }
                             .clearAndSetSemantics { contentDescription = label; role = Role.Button },
                             contentAlignment = Alignment.Center) {
-                            AsyncImage(aulaImage(ctx, "t${m.id}", m.thumbUrl, onError = urlsExpired), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            MediaThumb(m, Modifier.fillMaxSize(), onAllFailed = urlsExpired)
                             if (m.isVideo) Icon(Icons.Filled.PlayCircle, null, tint = Color.White, modifier = Modifier.size(32.dp))
                             if (m.id in newIds) Text(L.t("NY"), color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
                                 modifier = Modifier.align(Alignment.TopStart).padding(4.dp).clip(CircleShape).background(Color(0xFFFF3B30))
