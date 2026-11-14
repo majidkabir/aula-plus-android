@@ -100,7 +100,7 @@ fun ContactDetailScreen(key: String) {
     val ctx = LocalContext.current
     val c = remember { NavCache.items[key] as? Contact }
     if (c == null) { AulaScreen(title = "", onBack = { nav.back() }) { item { EmptyState(L.t("Ingen kontakter"), Icons.Filled.Call) } }; return }
-    val phones = buildList {
+    val phones = buildList<Pair<String, String>> {
         listOf(L.t("Mobil") to c.mobilePhone, L.t("Hjem") to c.homePhone, L.t("Arbejde") to c.workPhone).forEach { (l, n) ->
             if (!n.isNullOrBlank() && none { it.second == n }) add(l to n)
         }
