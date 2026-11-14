@@ -1,5 +1,7 @@
 package com.majidkabir.aulaplus.data
 
+import java.time.LocalDate
+
 import com.majidkabir.aulaplus.core.AulaConfig
 
 import com.majidkabir.aulaplus.core.L
@@ -406,7 +408,34 @@ data class Contact(
     val phones: List<String> = emptyList(),
     val email: String? = null,
     val pictureUrl: String? = null,
+    val role: String? = null,
+    val mobilePhone: String? = null,
+    val homePhone: String? = null,
+    val workPhone: String? = null,
+    val institutionName: String? = null,
+    val group: String? = null,
+    /** Children of a parent, or parents of a child. */
+    val relations: List<ContactRelation> = emptyList(),
 )
+
+@Serializable
+data class ContactRelation(val name: String, val detail: String? = null)
+
+/** One of my own institution profiles, with the contact info Aula has for it. */
+data class MyProfile(
+    val id: Int, val profileId: Int?, val name: String, val institutionName: String?, val institutionCode: String?,
+    val email: String, val mobilePhone: String, val homePhone: String, val workPhone: String,
+    val pictureUrl: String?, val canEditPicture: Boolean,
+)
+
+/** Someone who may pick up a child: family from Aula, or a name the parents added (removable). */
+data class PickupPerson(val id: String, val name: String, val relation: String?, val suggestionId: Int?)
+
+/** Opening hours for one day at one institution. */
+data class OpeningDay(val institutionCode: String, val date: LocalDate, val open: String?, val close: String?,
+                      val isClosed: Boolean, val isSpecial: Boolean, val name: String?)
+
+data class ClosedDays(val institutionCode: String, val start: LocalDate, val end: LocalDate, val name: String)
 
 @Serializable
 data class SecureDocument(

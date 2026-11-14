@@ -325,7 +325,8 @@ object AulaApi {
         }.sortedBy { it.date }
     }
 
-    suspend fun savePlan(p: DayPlan) {
+    /** [weekly]: the same times every week from that day. */
+    suspend fun savePlan(p: DayPlan, weekly: Boolean = false) {
         val entry = p.entry ?: "08:00"
         val exit = p.exit ?: "16:00"
         val kind = PickupKind.of(p.kind) ?: PickupKind.PICKED_UP_BY
@@ -345,9 +346,132 @@ object AulaApi {
             put("byDate", p.date)
             put("presenceActivity", activity)
             put("comment", p.comment ?: "")
-            put("repeatPattern", "never")
+            put("repeatPattern", if (weekly) "weekly" else "never")
             put("expiresAt", "$endYear-06-30T00:00:00+00:00")
-            if (p.templateId != null && !p.repeats) put("id", p.templateId)
+            if (p.templateId != null && (!p.repeats || weekly)) put("id", p.templateId)
+        })
+    }
+
+    /** Stops a weekly plan from the given day on (earlier weeks keep it). */
+    suspend fun deleteRepeatingPlan(templateId: Int, from: String) {
+        call("presence.deleteRepeatingPresenceTemplate", body = buildJsonObject { put("presentTemplateId", templateId); put("deleteFromDay", from) })
+    }
+
+    suspend fun pickupPeople(childId: Int): List<PickupPerson> {
+        val out = mutableListOf<PickupPerson>()
+        call("presence.getPickupResponsibles", listOf("uniStudentIds[]" to "$childId")).objects()
+            .filter { (it.int("uniStudentId") ?: childId) == childId }.forEach { item ->
+                item.objs("relatedPersons").forEach { p ->
+                    val n = p.str("name")?.takeIf { it.isNotBlank() } ?: return@forEach
+                    out += PickupPerson("r-${p.int("institutionProfileId") ?: n.hashCode()}", n, p.str("relation")?.takeIf { it.isNotBlank() }, null)
+                }
+                item.objs("pickupSuggestions").forEach { s ->
+                    val n = s.str("pickUpName")?.takeIf { it.isNotBlank() } ?: return@forEach
+                    out += PickupPerson("s-${s.int("id") ?: n.hashCode()}", n, null, s.int("id"))
+                }
+            }
+        return out.distinctBy { it.id }
+    }
+
+    suspend fun addPickupPerson(name: String, childIds: List<Int>) {
+        call("presence.savePickupNames", body = buildJsonObject {
+            putJsonArray("uniStudentIds") { childIds.forEach { add(JsonPrimitive(it)) } }; put("pickupName", name)
+        })
+    }
+
+    suspend fun removePickupPerson(suggestionId: Int) {
+        call("presence.deletePickupResponsible", body = buildJsonObject { put("presencePickupSuggestionId", suggestionId) })
+    }
+
+    /** "2026-11-14", "14-11-2026" or a full timestamp. */
+    private fun parseDay(s: String?): LocalDate? {
+        if (s.isNullOrBlank()) return null
+        val head = s.take(10)
+        runCatching { return LocalDate.parse(head) }
+        val p = head.split("-")
+        if (p.size == 3 && p[0].length == 2) runCatching { return LocalDate.of(p[2].toInt(), p[1].toInt(), p[0].toInt()) }
+        return null
+    }
+
+    suspend fun openingDays(codes: List<String>, from: LocalDate, to: LocalDate): List<OpeningDay> =
+        call("presence.getOpeningHoursByInstitutionCodes", listOf("startDate" to "$from", "endDate" to "$to") + codes.map { "institutionCodes[]" to it })
+            .asObj().objs("openingHoursOverviewDto").flatMap { inst ->
+                val code = inst.str("institutionCode") ?: return@flatMap emptyList()
+                inst.objs("openingHoursDto").mapNotNull { d ->
+                    val date = parseDay(d.str("date")) ?: return@mapNotNull null
+                    val type = d.str("type").orEmpty().lowercase()
+                    OpeningDay(code, date, AulaDate.shortTime(d.str("openTime")), AulaDate.shortTime(d.str("closeTime")),
+                        type == "closed_day", type == "specific_opening_hours", d.str("name")?.takeIf { it.isNotBlank() })
+                }
+            }.sortedBy { it.date }
+
+    suspend fun closedDays(codes: List<String>): List<ClosedDays> =
+        call("presence.getClosedDays", codes.map { "institutionCodes[]" to it }).objects().flatMap { inst ->
+            val code = inst.str("institutionCode") ?: return@flatMap emptyList()
+            inst.obj("closedDaysOverview").objs("closedDays").mapNotNull { c ->
+                val s = parseDay(c.str("startDate")) ?: return@mapNotNull null
+                ClosedDays(code, s, parseDay(c.str("endDate")) ?: s, c.str("name")?.takeIf { it.isNotBlank() } ?: L.t("Lukket"))
+            }
+        }.sortedBy { it.start }
+
+    // My profile
+
+    suspend fun myProfiles(ids: List<Int>): List<MyProfile> =
+        call("profiles.getProfileMasterData", ids.map { "instProfileIds[]" to "$it" }).asObj().objs("institutionProfiles").mapNotNull { p ->
+            val id = p.int("id") ?: p.int("institutionProfileId") ?: return@mapNotNull null
+            MyProfile(id, p.int("profileId"), p.personName() ?: p.str("name") ?: "",
+                p.str("institutionName") ?: p.obj("institution").str("institutionName"),
+                p.str("institutionCode") ?: p.obj("institution").str("institutionCode"),
+                p.str("email").orEmpty(), p.str("mobilePhoneNumber").orEmpty(), p.str("homePhoneNumber").orEmpty(), p.str("workPhoneNumber").orEmpty(),
+                p.obj("profilePicture").str("url") ?: p.str("profilePictureUrl"), p.bool("currentUserCanEditProfilePicture") ?: true)
+        }
+
+    suspend fun saveContactInfo(profiles: List<MyProfile>) {
+        call("profiles.updateProfileMasterData", body = buildJsonObject {
+            putJsonArray("institutionProfilesMasterData") {
+                profiles.forEach { p ->
+                    add(buildJsonObject {
+                        if (p.profileId == null) put("profileId", JsonNull) else put("profileId", p.profileId)
+                        put("institutionProfileId", p.id); put("homePhoneNumber", p.homePhone); put("mobilePhoneNumber", p.mobilePhone)
+                        put("workPhoneNumber", p.workPhone); put("email", p.email)
+                    })
+                }
+            }
+            put("primaryInstitutionProfileId", JsonNull); put("isChangedPrimaryInstProfile", false)
+        })
+    }
+
+    /** Uploads a new profile picture: Aula hands out an upload form for its storage, then links the photo. */
+    suspend fun uploadProfilePicture(jpeg: ByteArray, profile: MyProfile, allProfiles: Boolean) {
+        val uploadId = java.util.UUID.randomUUID().toString()
+        val created = call("files.createAttachments", body = buildJsonObject {
+            putJsonArray("media") {
+                add(buildJsonObject {
+                    putJsonObject("file") {}
+                    put("name", "profilbillede.jpg"); put("mediaType", "image"); put("rotationDegree", 0)
+                    put("title", JsonNull); put("description", JsonNull)
+                    putJsonArray("tags") { add(JsonPrimitive(profile.id)) }
+                    put("albumId", JsonNull); put("sensitivityLevel", JsonNull); put("allowsComments", true); put("uploadId", uploadId)
+                })
+            }
+            putJsonArray("files") {}; putJsonArray("links") {}; putJsonArray("existingMedia") {}
+            put("attachedSecureDocumentIds", JsonNull); put("ownerInstitutionProfileId", profile.id)
+            if (profile.institutionCode == null) put("institutionCode", JsonNull) else put("institutionCode", profile.institutionCode)
+        }).asObj()
+        val media = created.objs("media").let { list -> list.firstOrNull { it.str("uploadId") == uploadId } ?: list.firstOrNull() }
+            ?: error("files.createAttachments")
+        val mediaId = media.int("id") ?: error("files.createAttachments")
+        val form = media.obj("fileUploadInformation") ?: error("files.createAttachments")
+        val action = form.str("action") ?: error("files.createAttachments")
+        val builder = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
+        form.keys.filter { it != "action" }.forEach { k -> builder.addFormDataPart(k.replace('_', '-'), form.str(k) ?: (form[k]?.toString() ?: "")) }
+        builder.addFormDataPart("file", "profilbillede.jpg", jpeg.toRequestBody("image/jpeg".toMediaType()))
+        val res = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            okhttp3.OkHttpClient().newCall(okhttp3.Request.Builder().url(action).post(builder.build()).build()).execute().use { it.code }
+        }
+        if (res !in 200..299) error("HTTP $res")
+        call("profiles.updateProfilePicture", body = buildJsonObject {
+            put("institutionProfileId", profile.id); put("mediaId", mediaId); put("applyToAllInstitutionProfiles", allProfiles)
         })
     }
 
@@ -1015,9 +1139,17 @@ object AulaApi {
                 "page" to "$page", "order" to "asc")).objects().mapNotNull { c ->
                 val id = c.int("institutionProfileId") ?: c.int("id") ?: return@mapNotNull null
                 val related = c.objs("relations").mapNotNull { it.personName() }
+                val rels = c.objs("relations").mapNotNull { r ->
+                    val n = r.personName() ?: return@mapNotNull null
+                    ContactRelation(n, listOfNotNull(r.str("relation"), r.obj("mainGroup").str("name") ?: r.str("metadata"))
+                        .filter { it.isNotBlank() }.joinToString(" · ").ifBlank { null })
+                }
                 Contact(id, c.personName() ?: "", related.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: c.str("metadata") ?: c.str("role"),
                     listOfNotNull(c.str("mobilePhoneNumber"), c.str("phone"), c.str("homePhoneNumber"), c.str("workPhoneNumber")).distinct(),
-                    c.str("email"), c.obj("profilePicture").str("url") ?: c.str("profilePictureUrl"))
+                    c.str("email"), c.obj("profilePicture").str("url") ?: c.str("profilePictureUrl"),
+                    role = c.str("role"), mobilePhone = c.str("mobilePhoneNumber") ?: c.str("phone"), homePhone = c.str("homePhoneNumber"),
+                    workPhone = c.str("workPhoneNumber"), institutionName = c.str("institutionName"),
+                    group = c.obj("mainGroup").str("name") ?: c.str("metadata"), relations = rels)
             }
             all += batch
             if (batch.size < 20) break

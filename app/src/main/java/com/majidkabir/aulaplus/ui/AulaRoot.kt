@@ -111,6 +111,10 @@ fun MainNav(startRoute: String = AppState.tab.route) {
             composable("compose?draft={draft}") { ComposeScreen(it.arguments?.getString("draft")) }
             composable("folders") { FoldersScreen() }
             composable("tasks") { ParentTasksScreen() }
+            composable("profile") { MyProfileScreen() }
+            composable("presence") { PresenceHubScreen() }
+            composable("birthdays") { BirthdaysScreen() }
+            composable("contact/{key}") { ContactDetailScreen(it.arguments?.getString("key") ?: "") }
             composable("autoreply") { AutoReplyScreen() }
             composable("aula-notifications") { AulaNotificationSettingsScreen() }
             composable("calendar-feed") { CalendarFeedScreen() }

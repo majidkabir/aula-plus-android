@@ -170,6 +170,8 @@ fun ChildPresenceScreen(childId: Int) {
             Text(L.t("Institutionen tillader ikke at forældre ændrer tider her."), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        item { PickupPeopleCard(child) }
+        item { OpeningHoursCard(listOfNotNull(child.institutionCode)) }
     }
 
     if (confirmSick) AlertDialog(
@@ -235,6 +237,7 @@ fun DayPlanDialog(plan: DayPlan, childId: Int, done: (Boolean) -> Unit) {
     var names by remember { mutableStateOf<List<String>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var weekly by remember { mutableStateOf(false) }
     LaunchedEffect(childId) { names = runCatching { AulaApi.pickupNames(childId) }.getOrDefault(emptyList()) }
     AlertDialog(
         onDismissRequest = { done(false) },
@@ -256,8 +259,24 @@ fun DayPlanDialog(plan: DayPlan, childId: Int, done: (Boolean) -> Unit) {
                     OutlinedTextField(who, { who = it }, label = { Text(L.t("Navn (fx Mor)")) }, singleLine = true)
                 }
                 OutlinedTextField(comment, { comment = it }, label = { Text(L.t("Bemærkning")) })
-                if (plan.repeats) Text(L.t("Dagen følger en fast ugeplan. Ændringen gælder kun denne dag."), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (plan.repeats) L.t("Ret den faste ugeplan") else L.t("Gentag hver uge"), Modifier.weight(1f))
+                    androidx.compose.material3.Switch(weekly, { weekly = it })
+                }
+                Text(when {
+                    plan.repeats && weekly -> L.t("Ændringen gælder denne dag og alle de kommende uger.")
+                    plan.repeats -> L.t("Dagen følger en fast ugeplan. Ændringen gælder kun denne dag.")
+                    weekly -> L.t("Samme tider hver uge fra denne dag.")
+                    else -> L.t("Gælder kun denne dag.")
+                }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (plan.repeats && plan.templateId != null) TextButton(enabled = !saving, onClick = {
+                    scope.launch {
+                        saving = true
+                        runCatching { AulaApi.deleteRepeatingPlan(plan.templateId, plan.date) }
+                            .onSuccess { done(true) }.onFailure { error = L.t("Ikke ændret: %s", it.message ?: "") }
+                        saving = false
+                    }
+                }) { Text(L.t("Stop den faste plan fra denne dag"), color = Color(0xFFFF3B30)) }
                 error?.let { Text(it, color = Color(0xFFFF3B30)) }
             }
         },
@@ -267,7 +286,7 @@ fun DayPlanDialog(plan: DayPlan, childId: Int, done: (Boolean) -> Unit) {
                 if (exit <= entry) { error = L.t("Hentetid skal være efter afleveringstid."); return@TextButton }
                 scope.launch {
                     saving = true
-                    runCatching { AulaApi.savePlan(plan.copy(entry = entry, exit = exit, kind = kind.code, exitWith = who, comment = comment)) }
+                    runCatching { AulaApi.savePlan(plan.copy(entry = entry, exit = exit, kind = kind.code, exitWith = who, comment = comment), weekly) }
                         .onSuccess { done(true) }.onFailure { error = L.t("Ikke gemt: %s", it.message ?: "") }
                     saving = false
                 }
