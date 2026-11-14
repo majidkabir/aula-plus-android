@@ -92,7 +92,13 @@ data class Presence(
 }
 
 @Serializable
-data class Attachment(val name: String, val url: String? = null, val isLink: Boolean = false)
+data class Attachment(
+    val name: String,
+    val url: String? = null,
+    val isLink: Boolean = false,
+    /** Set when the attachment is a photo or video from Aula's media library: shown inline. */
+    val media: Media? = null,
+)
 
 @Serializable
 data class ThreadSummary(

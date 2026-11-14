@@ -258,7 +258,10 @@ object AulaApi {
             o.obj("media").str("title"), o.obj("link").str("name"), o.obj("document").str("title"))
             .firstOrNull { it != null } ?: L.t("Vedhæftet fil")
         val linkOnly = o.obj("link").str("url") != null && o.obj("media").obj("file").str("url") == null && o.obj("file").str("url") == null
-        return Attachment(name, url, linkOnly)
+        val type = o.obj("media").str("mediaType").orEmpty().lowercase()
+        val media = o.obj("media")?.takeIf { type.isEmpty() || "image" in type || "video" in type || "media" in type }
+            ?.let(::mediaOf)?.takeIf { it.thumbUrl != null || it.fullUrl != null }
+        return Attachment(name, url, linkOnly, media)
     }
 
     private fun ids(list: List<Int>, name: String) = list.map { name to it.toString() }
@@ -677,20 +680,22 @@ object AulaApi {
 
     private fun mediaList(d: JsonElement?): List<Media> {
         val list = (d as? JsonArray)?.objects() ?: d.asObj().objs("results")
-        return list.mapNotNull { m ->
-            val tags = m.arr("tags").mapNotNull { t ->
-                val o = t.asObj()
-                val id = o.int("id") ?: o.int("institutionProfileId") ?: return@mapNotNull null
-                val name = o.firstStr("name", "fullName") ?: o.obj("profile").firstStr("name", "fullName") ?: return@mapNotNull null
-                MediaTag(id, name)
-            }.distinctBy { it.id }
-            Media(m.int("id") ?: return@mapNotNull null,
-                m.firstStr("smallThumbnailUrl", "thumbnailUrl", "mediumThumbnailUrl", "largeThumbnailUrl") ?: m.obj("file").str("url"),
-                m.obj("file").str("url") ?: m.str("largeThumbnailUrl"),
-                (m.str("mediaType") ?: "").contains("video", true),
-                m.str("title")?.takeIf { it.isNotBlank() }, tags, m.str("description"), m.bool("currentUserCanEditTags") ?: false,
-                m.firstStr("largeThumbnailUrl", "mediumThumbnailUrl") ?: m.obj("file").str("url"))
-        }.distinctBy { it.id } // Aula lists an item once per child profile
+        return list.mapNotNull(::mediaOf).distinctBy { it.id } // Aula lists an item once per child profile
+    }
+
+    private fun mediaOf(m: JsonObject): Media? {
+        val tags = m.arr("tags").mapNotNull { t ->
+            val o = t.asObj()
+            val id = o.int("id") ?: o.int("institutionProfileId") ?: return@mapNotNull null
+            val name = o.firstStr("name", "fullName") ?: o.obj("profile").firstStr("name", "fullName") ?: return@mapNotNull null
+            MediaTag(id, name)
+        }.distinctBy { it.id }
+        return Media(m.int("id") ?: return null,
+            m.firstStr("smallThumbnailUrl", "thumbnailUrl", "mediumThumbnailUrl", "largeThumbnailUrl") ?: m.obj("file").str("url"),
+            m.obj("file").str("url") ?: m.str("largeThumbnailUrl"),
+            (m.str("mediaType") ?: "").contains("video", true),
+            m.str("title")?.takeIf { it.isNotBlank() }, tags, m.str("description"), m.bool("currentUserCanEditTags") ?: false,
+            m.firstStr("largeThumbnailUrl", "mediumThumbnailUrl") ?: m.obj("file").str("url"))
     }
 
     /** [childIds]/[institutionCodes] matter: without them Aula leaves out tag and child notifications. */
@@ -717,29 +722,20 @@ object AulaApi {
     }
 
     /**
-     * Tags or untags one person in a photo. Aula's own app uses `gallery.addTag`/`removeTag`
-     * (`gallery.updateMedia` needs edit rights a guardian usually lacks); the web call is the fallback.
+     * Replaces the people tagged in a photo, exactly like Aula's web app:
+     * `files.updateAttachments` with the photo's full tag list (institution profile ids).
      */
     suspend fun setTag(profileId: Int, media: Media, tagged: Boolean, allTagIds: List<Int>) {
-        val first = runCatching {
-            call(if (tagged) "gallery.addTag" else "gallery.removeTag", body = buildJsonObject {
-                put("mediaId", media.id); put("instProfileId", profileId); put("tagId", profileId)
-            })
-        }
-        val error = first.exceptionOrNull() ?: return
-        if (error is NotLoggedInException) throw error
-        runCatching {
-            call("gallery.updateMedia", body = buildJsonObject {
-                putJsonArray("media") {
-                    add(buildJsonObject {
-                        put("id", media.id)
-                        putJsonArray("tags") { allTagIds.forEach { add(JsonPrimitive(it)) } }
-                        put("title", media.title)
-                        put("description", media.description)
-                    })
-                }
-            })
-        }.onFailure { throw error }
+        call("files.updateAttachments", body = buildJsonObject {
+            putJsonArray("media") {
+                add(buildJsonObject {
+                    put("id", media.id)
+                    putJsonArray("tags") { allTagIds.forEach { add(JsonPrimitive(it)) } }
+                    put("title", media.title)
+                    put("description", media.description)
+                })
+            }
+        })
     }
 
     /** Marks notifications as seen (Aula deletes them, like the web app does). */
