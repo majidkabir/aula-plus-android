@@ -1,5 +1,7 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.material.icons.filled.MoreVert
+import com.majidkabir.aulaplus.data.Demo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -104,21 +106,43 @@ fun MessagesScreen() {
     var onlyMarked by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<ThreadSummary?>(null) }
+    var acting by remember { mutableStateOf<ThreadSummary?>(null) }
+    /** null = inbox, -1 = drafts, else an Aula folder id. */
+    var folder by remember { mutableStateOf<Int?>(null) }
+    var serverResults by remember { mutableStateOf<List<ThreadSummary>>(emptyList()) }
+    var searching by remember { mutableStateOf(false) }
     val older = remember { mutableStateListOf<ThreadSummary>() }
     var nextPage by remember { mutableIntStateOf(1) }
     var loadingOlder by remember { mutableStateOf(false) }
     var noMoreOlder by remember { mutableStateOf(false) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) { Repo.threads.load(30) }
+    LaunchedEffect(Unit) { Repo.folders.load(600) }
+    val source = Repo.threads(folder?.takeIf { it > 0 })
+    LaunchedEffect(folder) { if (folder != null && folder!! > 0) source.load(60) }
+    // Aula's full-text search, after a short pause in typing.
+    LaunchedEffect(search) {
+        val term = search.trim()
+        if (term.length < 3 || Demo.isOn) { serverResults = emptyList(); return@LaunchedEffect }
+        delay(450)
+        searching = true
+        serverResults = runCatching {
+            val s = AulaApi.bootstrap()
+            AulaApi.searchMessages(term, s.children.map { it.id }, s.children.mapNotNull { it.institutionCode }.distinct().sorted())
+        }.getOrDefault(emptyList())
+        searching = false
+    }
     fun updateOlder(id: String, change: (ThreadSummary) -> ThreadSummary) {
         val i = older.indexOfFirst { it.id == id }
         if (i >= 0) older[i] = change(older[i])
     }
 
-    val all = ((Repo.threads.value ?: emptyList()) + older).distinctBy { it.id }
+    val all = ((source.value ?: emptyList()) + (if (folder == null) older else emptyList()) +
+        (if (search.isBlank()) emptyList() else serverResults)).distinctBy { it.id }
+    val serverIds = serverResults.map { it.id }.toSet()
     val selected = AppState.selectedChildId?.let(AppState::child)
-    val threads = all.filter { t ->
-        (!onlyUnread || !t.isRead) && (!onlyMarked || t.isMarked) &&
+    val threads = if (folder == -1) emptyList() else all.filter { t ->
+        (search.isNotBlank() && t.id in serverIds) || (!onlyUnread || !t.isRead) && (!onlyMarked || t.isMarked) &&
             (selected == null || t.regarding.isEmpty() || t.regarding.any { it.contains(selected.firstName, true) }) &&
             (search.isBlank() || listOf(t.subject, t.sender, t.preview).any { it.contains(search, true) })
     }
@@ -135,26 +159,33 @@ fun MessagesScreen() {
                         leadingIcon = { Checkbox(onlyUnread, null) })
                     DropdownMenuItem(text = { Text(L.t("Kun markerede")) }, onClick = { onlyMarked = !onlyMarked },
                         leadingIcon = { Checkbox(onlyMarked, null) })
+                    HorizontalDivider()
+                    DropdownMenuItem(text = { Text(L.t("Administrér mapper")) }, onClick = { menu = false; nav.open("folders") })
+                    DropdownMenuItem(text = { Text(L.t("Autosvar")) }, onClick = { menu = false; nav.open("autoreply") })
                 }
             }
             IconButton(onClick = { nav.open("compose") }, modifier = Modifier.semantics { contentDescription = L.t("Ny besked") }) {
                 Icon(Icons.Filled.Edit, null)
             }
         },
-        refreshing = Repo.threads.isLoading,
-        onRefresh = { older.clear(); nextPage = 1; noMoreOlder = false; Repo.threads.refresh() },
+        refreshing = source.isLoading,
+        onRefresh = { older.clear(); nextPage = 1; noMoreOlder = false; source.refresh(); Repo.folders.refresh() },
         bottomBar = { AulaBottomBar() },
     ) {
-        item { SearchField(search, L.t("Søg i beskeder")) { search = it } }
+        item { SearchField(search, L.t("Søg i alle beskeder")) { search = it } }
+        item { FolderBar(folder) { folder = it } }
         item { ChildFilterBar() }
-        item { StaleBanner(Repo.threads.error, Repo.threads.savedAt) }
-        if (threads.isEmpty()) {
-            item { if (Repo.threads.isLoading) Loading() else EmptyState(L.t(if (onlyUnread) "Ingen ulæste beskeder" else "Ingen beskeder"), Icons.Outlined.Inbox) }
+        item { StaleBanner(source.error, source.savedAt) }
+        if (folder == -1) {
+            if (Repo.drafts.isEmpty()) item { EmptyState(L.t("Ingen kladder"), Icons.Outlined.Inbox) }
+            Repo.drafts.forEach { d -> item(key = "draft-${d.id}") { DraftRow(d) { nav.open("compose?draft=${d.id}") } } }
+        } else if (threads.isEmpty()) {
+            item { if (source.isLoading || searching) Loading() else EmptyState(L.t(if (onlyUnread) "Ingen ulæste beskeder" else "Ingen beskeder"), Icons.Outlined.Inbox) }
         } else threads.forEach { t ->
             // Each thread on its own rounded card; unread ones get a soft brand tint.
             item(key = "thread-${t.id}") {
                 Box(if (t.isRead) Modifier.card(6.dp) else Modifier.pastelCard(MaterialTheme.colorScheme.primary, 6.dp)) {
-                    ThreadRow(t, onLongClick = { deleting = t }, onStar = {
+                    ThreadRow(t, onLongClick = { acting = t }, onStar = {
                         scope.launch {
                             Repo.setMarked(t.id, !t.isMarked); updateOlder(t.id) { it.copy(isMarked = !t.isMarked) }
                             runCatching { AulaApi.setMarked(t.id, !t.isMarked) }
@@ -167,7 +198,7 @@ fun MessagesScreen() {
                 }
             }
         }
-        if (search.isBlank() && threads.isNotEmpty() && !noMoreOlder) item {
+        if (search.isBlank() && folder == null && threads.isNotEmpty() && !noMoreOlder) item {
             TextButton(enabled = !loadingOlder, onClick = {
                 scope.launch {
                     loadingOlder = true
@@ -180,6 +211,18 @@ fun MessagesScreen() {
                 if (loadingOlder) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(L.t("Hent ældre beskeder"))
             }
         }
+    }
+    acting?.let { t ->
+        ThreadActionsDialog(t, folder?.takeIf { it > 0 }, onDismiss = { acting = null },
+            onMark = {
+                scope.launch {
+                    Repo.setMarked(t.id, !t.isMarked); updateOlder(t.id) { it.copy(isMarked = !t.isMarked) }
+                    runCatching { AulaApi.setMarked(t.id, !t.isMarked) }
+                        .onFailure { Repo.setMarked(t.id, t.isMarked); updateOlder(t.id) { it.copy(isMarked = t.isMarked) } }
+                }
+            },
+            onDelete = { deleting = t },
+            onDone = { updated -> if (updated == null) older.removeAll { it.id == t.id } else updateOlder(t.id) { updated } })
     }
     deleting?.let { t ->
         AlertDialog(
@@ -271,6 +314,8 @@ fun ThreadScreen(id: String) {
     val scope = rememberCoroutineScope()
     val page = Repo.thread(id)
     val summary = Repo.threads.value?.firstOrNull { it.id == id }
+        ?: Repo.folders.value.orEmpty().firstNotNullOfOrNull { f -> Repo.threads(f.id).value?.firstOrNull { it.id == id } }
+    var actions by remember { mutableStateOf(false) }
     val older = remember { mutableStateListOf<Message>() }
     var nextPage by remember { mutableIntStateOf(1) }
     var exhausted by remember { mutableStateOf(false) }
@@ -305,6 +350,12 @@ fun ThreadScreen(id: String) {
     AulaScreen(
         title = page.value?.subject?.ifBlank { null } ?: summary?.subject ?: "",
         onBack = { nav.back() },
+        actions = {
+            if (summary != null) IconButton(onClick = { actions = true },
+                modifier = Modifier.semantics { contentDescription = L.t("Flere handlinger") }) {
+                Icon(Icons.Filled.MoreVert, null)
+            }
+        },
         refreshing = page.isLoading,
         onRefresh = { page.refresh() },
         spacing = 8.dp,
@@ -363,6 +414,10 @@ fun ThreadScreen(id: String) {
             }
         }
     }
+    if (actions && summary != null) {
+        ThreadActionsDialog(summary, summary.folderId, onDismiss = { actions = false },
+            onDone = { updated -> if (updated == null) nav.back() })
+    }
 }
 
 @Composable
@@ -391,16 +446,22 @@ fun MessageBubble(m: Message, mine: Boolean, showSender: Boolean) {
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun ComposeScreen() {
+fun ComposeScreen(draftId: String? = null) {
     val nav = LocalNav.current
     val initial = remember { com.majidkabir.aulaplus.ui.NavCache.items.remove("compose-recipient") as? Recipient }
+    val draft = remember { draftId?.let { id -> Repo.drafts.firstOrNull { it.id == id } } }
+    var askSave by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Recipient>>(emptyList()) }
-    val recipients = remember { mutableStateListOf<Recipient>().apply { if (initial != null) add(initial) } }
-    var subject by remember { mutableStateOf("") }
-    var text by remember { mutableStateOf("") }
-    var sensitive by remember { mutableStateOf(false) }
+    val recipients = remember { mutableStateListOf<Recipient>().apply { draft?.let { addAll(it.recipients) }; if (initial != null) add(initial) } }
+    var subject by remember { mutableStateOf(draft?.subject ?: "") }
+    var text by remember { mutableStateOf(draft?.text ?: "") }
+    var sensitive by remember { mutableStateOf(draft?.sensitive ?: false) }
+    val hasContent = (subject.isNotBlank() || text.isNotBlank()) &&
+        (draft == null || draft.subject != subject || draft.text != text || draft.recipients != recipients.toList())
+    fun leave() { if (hasContent) askSave = true else nav.back() }
+    androidx.activity.compose.BackHandler(enabled = hasContent) { askSave = true }
     var sending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(query) {
@@ -411,13 +472,13 @@ fun ComposeScreen() {
     }
     val canSend = recipients.isNotEmpty() && subject.isNotBlank() && text.isNotBlank() && !sending
     AulaScreen(
-        title = L.t("Ny besked"), onBack = { nav.back() },
+        title = L.t("Ny besked"), onBack = { leave() },
         actions = {
             TextButton(enabled = canSend, onClick = {
                 scope.launch {
                     sending = true; error = null
                     runCatching { AulaApi.startThread(subject, text, recipients.toList(), sensitive) }
-                        .onSuccess { Repo.threads.refresh(); nav.back() }
+                        .onSuccess { draft?.let { Repo.deleteDraft(it.id) }; Repo.threads.refresh(); nav.back() }
                         .onFailure { error = L.t("Beskeden blev ikke sendt: %s", it.message ?: "") }
                     sending = false
                 }
@@ -458,5 +519,25 @@ fun ComposeScreen() {
             }
         }
         error?.let { item { Text(it, color = Color(0xFFFF3B30)) } }
+    }
+    if (askSave) {
+        AlertDialog(
+            onDismissRequest = { askSave = false },
+            title = { Text(L.t("Gem som kladde?")) },
+            text = { Text(L.t("Kladder gemmes kun på denne telefon.")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    askSave = false
+                    Repo.saveDraft(com.majidkabir.aulaplus.data.MessageDraft(id = draft?.id ?: java.util.UUID.randomUUID().toString(),
+                        recipients = recipients.toList(), subject = subject, text = text, sensitive = sensitive))
+                    nav.back()
+                }) { Text(L.t("Gem kladde")) }
+            },
+            dismissButton = {
+                TextButton(onClick = { askSave = false; draft?.let { Repo.deleteDraft(it.id) }; nav.back() }) {
+                    Text(L.t("Slet"), color = Color(0xFFFF3B30))
+                }
+            },
+        )
     }
 }

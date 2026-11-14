@@ -430,11 +430,16 @@ object AulaApi {
             isSensitive = t.bool("sensitive") ?: t.bool("isSensitive") ?: false,
             regarding = t.objs("regardingChildren").mapNotNull { it.personName() },
             isMarked = t.bool("marked") ?: false,
+            isMuted = t.bool("muted") ?: false,
+            subscriptionId = t.int("subscriptionId"),
+            folderId = t.int("folderId"),
         )
     }
 
-    suspend fun threads(page: Int = 0): Pair<List<ThreadSummary>, Boolean> {
-        val d = call("messaging.getThreads", listOf("sortOn" to "date", "orderDirection" to "desc", "page" to "$page")).asObj()
+    /** [folderId] null = the inbox. */
+    suspend fun threads(page: Int = 0, folderId: Int? = null): Pair<List<ThreadSummary>, Boolean> {
+        val d = call("messaging.getThreads", listOf("sortOn" to "date", "orderDirection" to "desc", "page" to "$page") +
+            listOfNotNull(folderId?.let { "folderId" to "$it" })).asObj()
         return d.objs("threads").mapNotNull(::thread) to (d.bool("moreMessagesExist") ?: false)
     }
 
@@ -503,6 +508,170 @@ object AulaApi {
             putJsonArray("threadIds") { add(idValue(threadId)) }
             put("subscriptionIds", JsonNull); put("commonInboxId", JsonNull)
         })
+    }
+
+    // Folders, mute, leave, search and auto-reply: the same calls aula.dk makes.
+
+    suspend fun folders(): List<MailFolder> =
+        call("messaging.getFolders", listOf("includeDeletedFolders" to "false")).objects().mapNotNull { f ->
+            MailFolder(f.int("id") ?: return@mapNotNull null, f.str("name") ?: "", f.str("type"))
+        }
+
+    suspend fun createFolder(name: String) {
+        call("messaging.createFolder", body = buildJsonObject { put("folderName", name); put("commonInboxId", JsonNull) })
+    }
+
+    suspend fun renameFolder(id: Int, name: String) {
+        call("messaging.updateFolder", body = buildJsonObject { put("folderName", name); put("folderId", id) })
+    }
+
+    suspend fun deleteFolder(id: Int) {
+        call("messaging.deleteFolder", body = buildJsonObject { put("folderId", id) })
+    }
+
+    /** [folderId] null moves the thread back to the inbox. */
+    suspend fun moveThread(threadId: String, folderId: Int?) {
+        call("messaging.moveThreadsToFolder", body = buildJsonObject {
+            if (folderId == null) put("folderId", JsonNull) else put("folderId", folderId)
+            putJsonArray("threadIds") { add(idValue(threadId)) }
+            putJsonArray("subscriptionIds") {}
+            put("commonInboxId", JsonNull)
+        })
+    }
+
+    suspend fun setMuted(subscriptionId: Int, muted: Boolean) {
+        call("messaging.setThreadsMuted", body = buildJsonObject {
+            put("muted", muted); putJsonArray("subscriptionIds") { add(JsonPrimitive(subscriptionId)) }
+            put("commonInboxId", JsonNull); put("otpInboxId", JsonNull)
+        })
+    }
+
+    suspend fun leaveThread(threadId: String) {
+        call("messaging.leaveThread", body = buildJsonObject { put("threadId", idValue(threadId)); put("otpInboxId", JsonNull) })
+    }
+
+    /** Full-text search in all messages on Aula. */
+    suspend fun searchMessages(text: String, childIds: List<Int>, institutionCodes: List<String>): List<ThreadSummary> {
+        val d = call("search.findMessage", body = buildJsonObject {
+            put("text", text); put("typeahead", false); put("exactTerm", true)
+            putJsonArray("activeChildrenInstitutionProfileIds") { childIds.forEach { add(JsonPrimitive(it)) } }
+            putJsonArray("institutionCodes") { institutionCodes.forEach { add(JsonPrimitive(it)) } }
+            put("limit", 40); put("offset", 0); put("commonInboxID", JsonNull); put("folderId", JsonNull)
+            put("filterBy", "all"); put("sortBy", "date"); put("sortDirection", "desc")
+        }).asObj()
+        return d.objs("results").mapNotNull { r ->
+            val id = r.obj("thread").str("id") ?: r.str("threadId") ?: return@mapNotNull null
+            val m = r.obj("searchMessage")
+            ThreadSummary(
+                id = id,
+                subject = r.obj("thread").str("subject")?.takeIf { it.isNotBlank() } ?: L.t("(Intet emne)"),
+                preview = Html.plain(m.html("text")),
+                sender = m.str("senderDisplayName") ?: r.obj("creator").str("fullName") ?: "",
+                dateMs = AulaDate.parse(m.str("sendDateTime")),
+                isRead = r.bool("read") ?: true,
+                isSensitive = (r.int("sensitivityLevel") ?: 1) > 1,
+                regarding = r.objs("regardingChildren").mapNotNull { it.personName() },
+                isMarked = r.bool("marked") ?: false,
+                isMuted = r.bool("muted") ?: false,
+                subscriptionId = r.int("subscriptionId"),
+                folderId = r.int("folderId"),
+            )
+        }.distinctBy { it.id }
+    }
+
+    suspend fun autoReply(): AutoReply? {
+        val d = call("messaging.getAutoReply").asObj() ?: return null
+        val text = d.obj("replyText")?.str("html") ?: d.str("replyText") ?: return null
+        return AutoReply(d.int("id"), Html.plain(text), AulaDate.parse(d.str("startDateTime")), AulaDate.parse(d.str("endDateTime")))
+    }
+
+    suspend fun setAutoReply(text: String, startMs: Long, endMs: Long?) {
+        call("messaging.setAutoReply", body = buildJsonObject {
+            put("replyText", text); put("startDateTime", aulaDateTime(startMs))
+            if (endMs == null) put("endDateTime", JsonNull) else put("endDateTime", aulaDateTime(endMs))
+        })
+    }
+
+    suspend fun deleteAutoReply(id: Int) {
+        call("messaging.deleteAutoReply", body = buildJsonObject { put("autoReplyId", id) })
+    }
+
+    /** "2026-11-14T08:00:00.0000+01:00", the format aula.dk sends. */
+    private fun aulaDateTime(ms: Long): String =
+        java.time.Instant.ofEpochMilli(ms).atZone(AulaDate.copenhagen)
+            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'.0000'xxx"))
+
+    // Aula's own notification settings and calendar feed
+
+    suspend fun notificationSettings(): AulaNotificationSettings {
+        val d = call("Notifications.getNotificationSettingsForActiveProfile").asObj()
+        val days = listOf("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday").map { d.bool(it) ?: false }
+        return AulaNotificationSettings(
+            instant = d.bool("instant") ?: true, scheduledTime = d.str("scheduledTime"), days = days,
+            push = !(d.bool("appDisabled") ?: false), pushAvailable = d.bool("appAvailable") ?: true,
+            email = !(d.bool("emailDisabled") ?: true), emailAvailable = d.bool("emailAvailable") ?: false,
+            fromEmployees = d.bool("notifyMessagesFromEmployees") ?: true,
+            fromGuardians = d.bool("notifyMessagesFromGuardians") ?: true,
+            fromChildren = d.bool("notifyMessagesFromChildren") ?: true,
+            calendar = d.bool("notifyCalendar") ?: true, gallery = d.bool("notifyGallery") ?: true, posts = d.bool("notifyPosts") ?: true,
+            substitute = d.bool("notifyAssignedAsSubstituteTeacher") ?: false, lessonNote = d.bool("notifyLessonNoteChanged") ?: false,
+            comeGo = d.objs("comeGoNotificationSettings").mapNotNull { c ->
+                val type = c.str("comeGoType") ?: return@mapNotNull null
+                NamedSwitch(type, comeGoTitle(type), c.bool("activated") ?: false)
+            },
+            widgets = d.objs("widgetNotificationSettingDtos").mapNotNull { w ->
+                NamedSwitch((w.int("widgetId") ?: return@mapNotNull null).toString(), w.str("title") ?: "Widget", w.bool("isActive") ?: false)
+            },
+        )
+    }
+
+    fun comeGoTitle(type: String) = when (type) {
+        "VacationRegistrationRequest" -> L.t("Ferieanmodninger")
+        "PickupActivity" -> L.t("Afhentning")
+        else -> type
+    }
+
+    suspend fun saveNotificationSettings(s: AulaNotificationSettings) {
+        val names = listOf("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        call("Notifications.setNotificationSettingsForActiveProfile", body = buildJsonObject {
+            if (s.instant) put("scheduledTime", JsonNull) else put("scheduledTime", s.scheduledTime ?: "0800")
+            put("notifyMessages", s.fromEmployees || s.fromGuardians || s.fromChildren)
+            put("notifyMessagesFromEmployees", s.fromEmployees); put("notifyMessagesFromGuardians", s.fromGuardians)
+            put("notifyMessagesFromChildren", s.fromChildren); put("notifyCalendar", s.calendar)
+            put("notifyAssignedAsSubstituteTeacher", s.substitute); put("notifyLessonNoteChanged", s.lessonNote)
+            put("notifyGallery", s.gallery); put("notifyPosts", s.posts)
+            putJsonArray("widgetSettings") {
+                s.widgets.forEach { w -> add(buildJsonObject { put("widgetId", w.id.toIntOrNull() ?: 0); put("title", w.title); put("isActive", w.on) }) }
+            }
+            putJsonArray("comeGoNotificationSettings") {
+                s.comeGo.forEach { c -> add(buildJsonObject { put("comeGoType", c.id); put("activated", c.on) }) }
+            }
+            put("appDisabled", !s.push); put("emailDisabled", !s.email); put("instant", s.instant)
+            names.forEachIndexed { i, n -> put(n, !s.instant && s.days[i]) }
+        })
+    }
+
+    suspend fun calendarFeeds(): List<CalendarFeed> = call("CalendarFeed.getFeedConfigurations").objects().mapNotNull { f ->
+        val c = f.obj("calendarFeedConfiguration") ?: f
+        CalendarFeed(c.int("id") ?: return@mapNotNull null, c.str("oneWeekFeed"), c.str("oneYearFeed"))
+    }
+
+    /** Accepts Aula's terms for calendar feeds and creates one with every event type a guardian can get. */
+    suspend fun createCalendarFeed(institutionProfileId: Int) {
+        call("CalendarFeed.setPolicyAnswer", body = buildJsonObject { put("policyAccepted", true) })
+        val types = runCatching {
+            call("calendarFeed.getEventTypesRelevantForPortalRole", listOf("PortalRole" to "guardian")).asObj().arr("eventTypes")
+                .mapNotNull { (it as? JsonPrimitive)?.content }
+        }.getOrNull()?.takeIf { it.isNotEmpty() }
+            ?: listOf("event", "holiday", "excursion", "other", "school_home_meeting", "parental_meeting")
+        call("CalendarFeed.createFeedConfiguration", body = buildJsonObject {
+            put("institutionProfileId", institutionProfileId)
+            putJsonArray("filters") { types.forEach { add(JsonPrimitive(it)) } }
+        })
+    }
+
+    suspend fun deleteCalendarFeed(id: Int) {
+        call("CalendarFeed.removeFeedConfiguration", body = buildJsonObject { put("calendarFeedConfigurationId", id) })
     }
 
     // endregion
