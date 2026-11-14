@@ -217,6 +217,38 @@ object FaceIndex {
         }
     }
 
+    /**
+     * Learns the child's face from photos the parent picks (system photo picker). Photos often show
+     * several people, so it finds the face that recurs across them and takes that face from each.
+     * Returns the number of faces learned.
+     */
+    suspend fun learnFromPhotos(childId: Int, bitmaps: List<Bitmap>): Int {
+        learning = true
+        try {
+            val perPhoto = bitmaps.map { FaceEngine.faces(it) }
+            val picked = consensus(perPhoto)
+            if (picked.isEmpty()) return 0
+            store = store.copy(refs = store.refs + (childId to (store.refs[childId].orEmpty() + picked).takeLast(80)), version = store.version + 1)
+            save()
+            return picked.size
+        } finally {
+            learning = false
+        }
+    }
+
+    /** The face that appears in the most photos, and its closest match in each photo. */
+    private fun consensus(perPhoto: List<List<FaceEngine.Face>>): List<FloatArray> {
+        val all = perPhoto.flatMapIndexed { i, faces -> faces.map { i to it } }
+        if (all.isEmpty()) return emptyList()
+        fun support(f: FaceEngine.Face, photo: Int) =
+            perPhoto.withIndex().count { (j, faces) -> j != photo && faces.any { dot(f.embedding, it.embedding) >= 0.55f } }
+        val seed = all.map { (i, f) -> f to support(f, i) }.maxWithOrNull(compareBy({ it.second }, { it.first.size })) ?: return emptyList()
+        if (seed.second < 2) return perPhoto.filter { it.size == 1 }.map { it[0].embedding }
+        return perPhoto.mapNotNull { faces ->
+            faces.maxByOrNull { dot(seed.first.embedding, it.embedding) }?.takeIf { dot(seed.first.embedding, it.embedding) >= 0.45f }?.embedding
+        }
+    }
+
     /** "Det er Emma": the biggest face in this photo becomes one of the child's reference faces. */
     suspend fun confirm(m: Media, childId: Int): Boolean {
         val face = image(m)?.let { FaceEngine.faces(it).firstOrNull() } ?: return false
