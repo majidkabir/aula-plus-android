@@ -56,7 +56,7 @@ class ScreenshotTest {
         Demo.isOn = true
         L.override = "en"
         AppState.phase = Phase.LOGGED_IN
-        ThemeStore.preview(AppTheme.OCEAN)
+        ThemeStore.preview(AppTheme.APRICOT)
     }
 
     @Composable
@@ -78,7 +78,7 @@ class ScreenshotTest {
         ) { AulaTheme(dark) { content() } }
     }
 
-    private fun shot(name: String, dark: Boolean = false, theme: AppTheme = AppTheme.OCEAN, fontScale: Float = 1f, tab: Tab = Tab.TODAY,
+    private fun shot(name: String, dark: Boolean = false, theme: AppTheme = AppTheme.APRICOT, fontScale: Float = 1f, tab: Tab = Tab.TODAY,
                      content: @Composable () -> Unit) {
         ThemeStore.preview(theme)
         AppState.tab = tab

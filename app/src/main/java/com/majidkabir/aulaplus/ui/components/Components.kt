@@ -156,7 +156,7 @@ fun IconTile(icon: ImageVector, color: Color, size: Dp = 36.dp) {
 
 @Composable
 fun InitialsAvatar(name: String, color: Color = Color.Gray, size: Dp = 32.dp) {
-    val initials = name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }
+    val initials = name.split(" ").filter { it.firstOrNull()?.isLetter() == true }.take(2).joinToString("") { it.first().uppercase() }
     Box(
         Modifier.size(size).clip(CircleShape).background(Brush.linearGradient(listOf(color, color.copy(alpha = 0.75f)))),
         contentAlignment = Alignment.Center,
