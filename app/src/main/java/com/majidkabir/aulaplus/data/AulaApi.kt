@@ -102,6 +102,9 @@ object AulaApi {
     private var session: Session? = null
     private var sessionReady = false
 
+    /** Fetch the session again on next use (e.g. after a new profile picture), keeping the login. */
+    fun invalidateSession() { sessionReady = false }
+
     fun reset() {
         sessionReady = false
         session = null
@@ -228,6 +231,7 @@ object AulaApi {
             guardianProfileIds = guardianIds,
             widgetNames = widgetNames,
             widgetLinks = widgetLinks,
+            pictureUrl = profile.objs("institutionProfiles").firstNotNullOfOrNull { it.obj("profilePicture").str("url") },
         )
         session = s
         sessionReady = true
@@ -426,8 +430,11 @@ object AulaApi {
                 p.obj("profilePicture").str("url") ?: p.str("profilePictureUrl"), p.bool("currentUserCanEditProfilePicture") ?: true,
                 addressOf(p.obj("address")), child, p.bool("currentUserCanEditContactInformation") ?: true)
         }
+        // Aula also sends the other parent's profile, and mine twice (once read-only): keep mine, editable copy first.
         val mine = call("profiles.getProfileMasterData", ids.map { "instProfileIds[]" to "$it" }).asObj().objs("institutionProfiles")
-        val out = mine.mapNotNull { make(it, false) }.toMutableList()
+            .filter { (it.int("id") ?: it.int("institutionProfileId")) in ids }
+            .sortedByDescending { it.bool("currentUserCanEditProfilePicture") == true }
+        val out = mine.mapNotNull { make(it, false) }.distinctBy { it.id }.toMutableList()
         // My children's contact details (the same page on aula.dk).
         mine.forEach { p -> p.objs("relations").filter { it.str("role") == "child" }.forEach { r -> make(r, true)?.let { c -> if (out.none { it.id == c.id }) out += c } } }
         return out

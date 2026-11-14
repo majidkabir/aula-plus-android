@@ -2,6 +2,7 @@
 
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.ui.components.MeAvatar
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.FrontHand
@@ -931,7 +932,7 @@ fun SettingsScreen() {
         if (s != null) item {
             MenuGroup(L.t("Logget ind som")) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    InitialsAvatar(s.displayName, ThemeStore.theme.brandLight, 42.dp)
+                    MeAvatar(ThemeStore.theme.brandLight, 42.dp)
                     Text(s.displayName, style = MaterialTheme.typography.titleMedium)
                 }
                 s.children.forEach { c ->

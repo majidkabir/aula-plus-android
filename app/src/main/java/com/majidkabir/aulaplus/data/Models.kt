@@ -31,6 +31,8 @@ data class Session(
     val widgetNames: Map<String, String> = emptyMap(),
     /** Widgets with a web address (opened in the browser). */
     val widgetLinks: List<WidgetLink> = emptyList(),
+    /** My own profile picture. */
+    val pictureUrl: String? = null,
 ) {
     /** Widgets that look like a week plan, by Aula's own name for them. */
     val weekPlanWidgetNames: List<String>
