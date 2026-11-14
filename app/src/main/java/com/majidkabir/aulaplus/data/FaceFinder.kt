@@ -147,7 +147,7 @@ object FaceIndex {
     var learning by mutableStateOf(false)
         private set
 
-    fun setEnabled(on: Boolean) {
+    fun switchOn(on: Boolean) {
         isEnabled = on
         AulaApp.prefs.edit().putBoolean("faceFinder", on).apply()
     }

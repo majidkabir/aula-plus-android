@@ -839,7 +839,7 @@ fun SettingsScreen() {
         item { MenuGroup(L.t("Tema")) { ThemePicker() } }
         item {
             MenuGroup(null) {
-                ToggleRow(L.t("Find mine børn på billeder"), Icons.Filled.Face, Color(0xFFAF52DE), FaceIndex.isEnabled) { FaceIndex.setEnabled(it) }
+                ToggleRow(L.t("Find mine børn på billeder"), Icons.Filled.Face, Color(0xFFAF52DE), FaceIndex.isEnabled) { FaceIndex.switchOn(it) }
                 TextButton(onClick = {
                     FaceIndex.eraseAll()
                     Toast.makeText(ctx, L.t("Slet ansigtsdata"), Toast.LENGTH_SHORT).show()
