@@ -56,9 +56,9 @@ object ParentTaskFinder {
     private var running: Job? = null
 
     var isEnabled: Boolean
-        get() = enabled
-        set(v) { enabled = v; if (AulaApp.isReady) AulaApp.prefs.edit().putBoolean("parentTasksOff", !v).apply() }
-    private var enabled by mutableStateOf(!AulaApp.isReady || !AulaApp.prefs.getBoolean("parentTasksOff", false))
+        get() = switchedOn
+        set(v) { switchedOn = v; if (AulaApp.isReady) AulaApp.prefs.edit().putBoolean("parentTasksOff", !v).apply() }
+    private var switchedOn by mutableStateOf(!AulaApp.isReady || !AulaApp.prefs.getBoolean("parentTasksOff", false))
 
     val tasks get() = store.tasks
     val done get() = store.done
