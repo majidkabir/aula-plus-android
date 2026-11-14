@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.core.AulaDate
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -147,8 +148,16 @@ fun MediaViewer(initialItems: List<Media>, start: Int, children: List<Child> = e
             }
             Row(Modifier.fillMaxWidth().systemBarsPadding().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose) { Icon(Icons.Filled.Close, L.t("Luk"), tint = Color.White) }
-                Text(if (items.isEmpty()) "" else "${pager.currentPage + 1} / ${items.size}", color = Color.White,
-                    style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                val at = items.getOrNull(pager.currentPage)?.dateMs?.let { java.time.Instant.ofEpochMilli(it).atZone(AulaDate.copenhagen) }
+                Column(Modifier.weight(1f)) {
+                    // Like the Photos app: the day on top, time and position below.
+                    if (at != null) {
+                        Text(PhotoDay.title(at.toLocalDate()), color = Color.White, style = MaterialTheme.typography.titleMedium)
+                        Text("${at.toLocalTime().toString().take(5)} · ${pager.currentPage + 1} / ${items.size}", color = Color.White.copy(alpha = 0.75f),
+                            style = MaterialTheme.typography.bodySmall)
+                    } else Text(if (items.isEmpty()) "" else "${pager.currentPage + 1} / ${items.size}", color = Color.White,
+                        style = MaterialTheme.typography.titleMedium)
+                }
                 val shown = items.getOrNull(pager.currentPage)
                 // "Det er Emma" / "Ikke Emma": teaches face finding (only on this phone, nothing goes to Aula).
                 if (shown != null && !shown.isVideo && FaceIndex.isEnabled && children.isNotEmpty()) Box {

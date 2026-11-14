@@ -263,6 +263,8 @@ data class Media(
     val canEditTags: Boolean = false,
     /** A mid-size version for finding faces (large/medium thumbnail, else the full photo). */
     val scanUrl: String? = null,
+    /** When the photo was put on Aula (epoch ms). */
+    val dateMs: Long? = null,
 ) {
     fun isTagged(childId: Int) = tags.any { it.id == childId }
 }

@@ -204,6 +204,8 @@ object L {
         "Ingen kontakter" to "No contacts",
         "Ingen notifikationer" to "No notifications",
         "Ingen opslag" to "No posts",
+        "Uden dato" to "No date",
+        "1 billede" to "1 photo",
         "Indbakke" to "Inbox",
         "Slettet post" to "Deleted",
         "Kladder" to "Drafts",

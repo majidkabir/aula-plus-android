@@ -888,7 +888,8 @@ object AulaApi {
             m.obj("file").str("url") ?: m.str("largeThumbnailUrl"),
             (m.str("mediaType") ?: "").contains("video", true),
             m.str("title")?.takeIf { it.isNotBlank() }, tags, m.str("description"), m.bool("currentUserCanEditTags") ?: false,
-            m.firstStr("largeThumbnailUrl", "mediumThumbnailUrl") ?: m.obj("file").str("url"))
+            m.firstStr("largeThumbnailUrl", "mediumThumbnailUrl") ?: m.obj("file").str("url"),
+            AulaDate.parse(m.obj("file").str("created")))
     }
 
     /** [childIds]/[institutionCodes] matter: without them Aula leaves out tag and child notifications. */
