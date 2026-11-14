@@ -801,7 +801,7 @@ fun ContactsScreen() {
         item { SearchField(search, L.t("Søg navn")) { search = it } }
         loadable?.let { l -> item { StaleBanner(l.error, l.savedAt) } }
         val waiting = !groupsLoaded || (groups.isNotEmpty() && (loadable == null || loadable?.isLoading == true))
-        if (shown.isEmpty()) item { if (waiting) Loading() else EmptyState(L.t("Ingen kontakter"), Icons.Filled.People) }
+        if (shown.isEmpty()) item { if (waiting) Loading() else EmptyState(L.t("Ingen kontakter"), Icons.Filled.People, subtitle = L.t("Institutionen deler ikke nogen i denne gruppe. Prøv en anden fane.")) }
         else item {
             Column(Modifier.card(4.dp)) {
                 shown.forEachIndexed { i, c ->
@@ -860,7 +860,7 @@ fun DocumentsScreen() {
         if (tab == 0) {
             item { StaleBanner(docs.error, docs.savedAt) }
             val list = docs.value ?: emptyList()
-            if (list.isEmpty()) item { if (docs.isLoading) Loading() else EmptyState(L.t("Ingen dokumenter"), Icons.Outlined.Folder) }
+            if (list.isEmpty()) item { if (docs.isLoading) Loading() else EmptyState(L.t("Ingen sikre dokumenter"), Icons.Outlined.Folder, subtitle = L.t("Dokumenter, som institutionen deler med dig, vises her.")) }
             else item {
                 Column(Modifier.card(4.dp)) {
                     list.forEachIndexed { i, d ->
@@ -872,7 +872,7 @@ fun DocumentsScreen() {
         } else {
             item { StaleBanner(files.error, files.savedAt) }
             val list = files.value ?: emptyList()
-            if (list.isEmpty()) item { if (files.isLoading) Loading() else EmptyState(L.t("Ingen filer"), Icons.Outlined.Folder) }
+            if (list.isEmpty()) item { if (files.isLoading) Loading() else EmptyState(L.t("Ingen fælles filer"), Icons.Outlined.Folder, subtitle = L.t("Filer, som institutionen deler med alle forældre, vises her.")) }
             list.forEach { f ->
                 item {
                     Column(Modifier.card(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -928,7 +928,7 @@ fun SettingsScreen() {
         RefreshWorker.setEnabled(ctx, granted)
         if (!granted) Toast.makeText(ctx, L.t("Tillad notifikationer for Aula+ i Androids indstillinger."), Toast.LENGTH_LONG).show()
     }
-    AulaScreen(title = L.t("Profil"), onBack = { nav.back() }, spacing = 20.dp) {
+    AulaScreen(title = L.t("Indstillinger"), onBack = { nav.back() }, spacing = 20.dp) {
         if (s != null) item {
             MenuGroup(L.t("Logget ind som")) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

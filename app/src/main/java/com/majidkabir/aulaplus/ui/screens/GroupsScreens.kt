@@ -1,5 +1,9 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.RadioButton
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -288,20 +292,19 @@ fun ConsentsScreen() {
             item(key = "c$person") {
                 MenuGroup(person) {
                     cs.forEach { c ->
-                        var open by remember { mutableStateOf(false) }
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(c.text, style = MaterialTheme.typography.bodyMedium)
-                            Box {
-                                TextButton(enabled = c.editable, onClick = { open = true }) { Text(c.answer?.let(::consentLabel) ?: L.t("Ikke besvaret")) }
-                                DropdownMenu(open, { open = false }) {
-                                    c.allowed.forEach { a ->
-                                        DropdownMenuItem(text = { Text(consentLabel(a)) }, onClick = {
-                                            open = false
-                                            items = list.map { if (it.id == c.id && it.profileId == c.profileId) it.copy(answer = a) else it }
-                                        })
-                                    }
+                        Column(Modifier.padding(vertical = 8.dp).selectableGroup()) {
+                            Text(c.text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                            c.allowed.forEach { a ->
+                                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                                    .selectable(c.answer == a, enabled = c.editable, role = androidx.compose.ui.semantics.Role.RadioButton) {
+                                        items = list.map { if (it.id == c.id && it.profileId == c.profileId) it.copy(answer = a) else it }
+                                    }.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(c.answer == a, null, enabled = c.editable)
+                                    Text(consentLabel(a), Modifier.padding(start = 12.dp))
                                 }
                             }
+                            if (c.answer == null) Text(L.t("Ikke besvaret endnu"), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 12.dp))
                         }
                     }
                 }

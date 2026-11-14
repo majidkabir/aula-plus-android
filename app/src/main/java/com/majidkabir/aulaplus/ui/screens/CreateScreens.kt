@@ -2,6 +2,9 @@
 
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.selection.toggleable
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -304,10 +307,11 @@ fun CreateAlbumScreen() {
                 val list = groups
                 if (list == null) Box(Modifier.padding(12.dp)) { CircularProgressIndicator(Modifier.size(20.dp)) }
                 else list.forEach { g ->
-                    Row(Modifier.fillMaxWidth().clickable { if (g.id in chosen) chosen.remove(g.id) else chosen.add(g.id) }.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Text(g.name, Modifier.weight(1f))
-                        if (g.id in chosen) Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary)
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        .toggleable(g.id in chosen, role = androidx.compose.ui.semantics.Role.Checkbox) { if (g.id in chosen) chosen.remove(g.id) else chosen.add(g.id) }
+                        .padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(g.id in chosen, null)
+                        Text(g.name, Modifier.padding(start = 12.dp).weight(1f))
                     }
                 }
             }
@@ -423,7 +427,12 @@ fun MeetingSlotsCard(d: EventDetail, people: List<Pair<Int, String>>, reload: su
                 }
             }
         }
-        Text(if (d.deadlineExceeded) L.t("Svarfristen er overskredet.") else L.t("Tryk på en ledig tid for at booke den."),
+        Text(when {
+                d.deadlineExceeded -> L.t("Svarfristen er overskredet.")
+                d.deadlineMs != null -> L.t("Tryk på en ledig tid for at booke den. Book senest %s.",
+                    AulaDate.weekdayDayMonth(AulaDate.localDate(d.deadlineMs)) + " " + AulaDate.time(d.deadlineMs))
+                else -> L.t("Tryk på en ledig tid for at booke den.")
+            },
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         error?.let { Text(it, color = Color(0xFFFF3B30), style = MaterialTheme.typography.bodySmall) }
     }
