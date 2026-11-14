@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus.ui.theme
 
+import androidx.compose.ui.graphics.luminance
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -139,7 +140,7 @@ fun AulaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> 
         if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
     } else if (dark) {
         darkColorScheme(
-            primary = t.brandDark, onPrimary = if (t == AppTheme.GRAPHITE) Color.Black else Color.White,
+            primary = t.brandDark, onPrimary = readableOn(t.brandDark),
             secondary = t.second, background = DarkBackground, surface = Color(0xFF251E19),
             surfaceVariant = Color(0xFF352B23), surfaceContainer = Color(0xFF251E19),
             surfaceContainerHigh = Color(0xFF352B23), onSurfaceVariant = Color(0xFFB9A594),
@@ -148,7 +149,7 @@ fun AulaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> 
         )
     } else {
         lightColorScheme(
-            primary = t.brandLight, onPrimary = Color.White, secondary = t.second,
+            primary = t.brandLight, onPrimary = readableOn(t.brandLight), secondary = t.second,
             background = LightBackground, surface = Color.White, surfaceVariant = Color(0xFFF6E8D9),
             surfaceContainer = Color.White, surfaceContainerHigh = Color(0xFFF6E8D9),
             onSurfaceVariant = Color(0xFF8E705A), onBackground = Color(0xFF3A2A1E), onSurface = Color(0xFF3A2A1E),
@@ -166,3 +167,9 @@ fun AulaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> 
 }
 
 val Body = TextStyle(fontSize = 16.sp)
+
+/** White where it reads well on [c] (≥ 3:1, bold text), else near-black: the lifted dark-mode colours are too light for white. */
+fun readableOn(c: Color): Color {
+    val white = 1.05f / (c.luminance() + 0.05f)
+    return if (white >= 3f) Color.White else Color(0xFF141414)
+}
