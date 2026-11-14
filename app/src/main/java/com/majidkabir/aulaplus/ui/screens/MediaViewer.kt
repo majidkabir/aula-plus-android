@@ -8,6 +8,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -97,9 +101,11 @@ fun MediaViewer(initialItems: List<Media>, start: Int, children: List<Child> = e
                 val m = items[i]
                 Box(Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null,
                     onClickLabel = L.t("Vis eller skjul tags")) { showInfo = !showInfo }, contentAlignment = Alignment.Center) {
+                    var imageSize by remember(m.id) { mutableStateOf<androidx.compose.ui.geometry.Size?>(null) }
                     SubcomposeAsyncImage(
                         model = if (m.isVideo) aulaImage(ctx, "t${m.id}", m.thumbUrl) else aulaImage(ctx, "f${m.id}", m.fullUrl ?: m.thumbUrl),
                         contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize(),
+                        onSuccess = { imageSize = it.painter.intrinsicSize },
                         // The cached thumbnail shows at once while the full photo loads.
                         loading = {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -108,6 +114,27 @@ fun MediaViewer(initialItems: List<Media>, start: Int, children: List<Child> = e
                             }
                         },
                     )
+                    // A face found by face recognition is outlined while the info is shown.
+                    val box = if (showInfo) children.firstNotNullOfOrNull { FaceIndex.faceBox(m, it.id) } else null
+                    val size = imageSize
+                    if (box != null && size != null && size.width > 0 && size.height > 0) {
+                        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+                            val w = constraints.maxWidth.toFloat(); val h = constraints.maxHeight.toFloat()
+                            val scale = minOf(w / size.width, h / size.height)
+                            val dw = size.width * scale; val dh = size.height * scale
+                            val ox = (w - dw) / 2; val oy = (h - dh) / 2
+                            val padX = box[2] * dw * 0.15f; val padY = box[3] * dh * 0.15f
+                            val density = androidx.compose.ui.platform.LocalDensity.current
+                            with(density) {
+                                Box(Modifier
+                                    .offset { androidx.compose.ui.unit.IntOffset((ox + box[0] * dw - padX).toInt(), (oy + box[1] * dh - padY).toInt()) }
+                                    .size((box[2] * dw + 2 * padX).toDp(), (box[3] * dh + 2 * padY).toDp())
+                                    .border(5.dp, Color.White, RoundedCornerShape(14.dp))
+                                    .padding(2.dp)
+                                    .border(3.dp, Color(0xFFAF52DE), RoundedCornerShape(12.dp)))
+                            }
+                        }
+                    }
                     if (m.isVideo && m.fullUrl != null) IconButton(onClick = { ctx.openSafely(Intent(Intent.ACTION_VIEW, Uri.parse(m.fullUrl))) },
                         modifier = Modifier.size(88.dp)) {
                         Icon(Icons.Filled.PlayCircle, L.t("Afspil video"), tint = Color.White, modifier = Modifier.size(72.dp))
@@ -193,12 +220,22 @@ private fun MediaInfo(m: Media, children: List<Child>, isNew: Boolean, onLearn: 
     Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f))))
         .navigationBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         maybe.forEach { c ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FaceBadge(size = 18.dp)
-                Text(L.t("Måske %s", c.firstName), color = Color.White, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                androidx.compose.material3.Button(onClick = { onLearn(c) },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759))) { Text(L.t("Ja")) }
-                androidx.compose.material3.OutlinedButton(onClick = { FaceIndex.reject(m, c.id) }) { Text(L.t("Nej"), color = Color.White) }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FaceBadge(size = 18.dp)
+                    Text(L.t("Er det %s i rammen?", c.firstName), color = Color.White, style = MaterialTheme.typography.titleSmall)
+                }
+                // Far apart on purpose, so "no" isn't tapped by mistake.
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.OutlinedButton(onClick = { FaceIndex.reject(m, c.id) }, modifier = Modifier.widthIn(min = 110.dp)) {
+                        Text(L.t("Nej"), color = Color.White)
+                    }
+                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f).widthIn(min = 40.dp))
+                    androidx.compose.material3.Button(onClick = { onLearn(c) }, modifier = Modifier.widthIn(min = 110.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759))) {
+                        Text(L.t("Ja, det er %s", c.firstName))
+                    }
+                }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

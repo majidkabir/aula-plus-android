@@ -35,7 +35,8 @@ import kotlin.math.sqrt
  * (sirius-ai/MobileFaceNet_TF, Apache-2.0). Everything runs on the phone.
  */
 object FaceEngine {
-    class Face(val embedding: FloatArray, val size: Float)
+    /** [box]: where the face is, as fractions of the photo (left, top, width, height). */
+    class Face(val embedding: FloatArray, val size: Float, val box: List<Float>)
 
     private val lock = Mutex()
     private val detector by lazy {
@@ -67,7 +68,12 @@ object FaceEngine {
                 .take(12)
                 .mapNotNull { f ->
                     val crop = aligned(bitmap, f) ?: return@mapNotNull null
-                    embed(crop)?.let { Face(it, f.boundingBox.width().toFloat() / bitmap.width) }
+                    val b = f.boundingBox
+                    embed(crop)?.let {
+                        Face(it, b.width().toFloat() / bitmap.width,
+                            listOf(b.left.toFloat() / bitmap.width, b.top.toFloat() / bitmap.height,
+                                b.width().toFloat() / bitmap.width, b.height().toFloat() / bitmap.height))
+                    }
                 }
         }
     }
@@ -134,7 +140,7 @@ object FaceIndex {
     /** A face must be this much closer to one of my children than to the others. */
     const val MARGIN = 0.06f
     /** Bump to throw away results from an older, less careful version. */
-    private const val SCHEMA = 2
+    private const val SCHEMA = 3
 
     @Serializable
     private data class Store(
@@ -146,6 +152,8 @@ object FaceIndex {
         val rejected: Map<Int, Set<Int>> = emptyMap(),
         val found: Map<Int, List<Media>> = emptyMap(),
         val schema: Int = 0,
+        /** Photo id → child id → matched face (left, top, width, height as fractions). */
+        val boxes: Map<Int, Map<Int, List<Float>>> = emptyMap(),
     )
 
     private val json = Json { ignoreUnknownKeys = true; allowSpecialFloatingPointValues = true }
@@ -166,7 +174,14 @@ object FaceIndex {
     }
 
     private fun load(): Store = if (!AulaApp.isReady || Demo.isOn) Store(schema = SCHEMA) else
-        runCatching { json.decodeFromString<Store>(file.readText()) }.getOrNull()?.takeIf { it.schema == SCHEMA } ?: Store(schema = SCHEMA)
+        runCatching { json.decodeFromString<Store>(file.readText()) }.getOrNull()?.let {
+            when (it.schema) {
+                SCHEMA -> it
+                // Keep the learned faces; check photos again so each match knows where the face is.
+                2 -> it.copy(schema = SCHEMA, version = it.version + 1)
+                else -> null
+            }
+        } ?: Store(schema = SCHEMA)
 
     private fun save() {
         if (!AulaApp.isReady || Demo.isOn) return
@@ -250,8 +265,20 @@ object FaceIndex {
     }
 
     /** "Det er Emma": the biggest face in this photo becomes one of the child's reference faces. */
+    /** Where the matched face is in the photo (left, top, width, height as fractions), for highlighting it. */
+    fun faceBox(m: Media, childId: Int): List<Float>? =
+        if (isFaceMatch(m, childId)) store.boxes[m.id]?.get(childId)?.takeIf { it.size == 4 } else null
+
+    /** "Ja, det er Emma": learns the matched face (or the biggest face when nothing was matched). */
     suspend fun confirm(m: Media, childId: Int): Boolean {
-        val face = image(m)?.let { FaceEngine.faces(it).firstOrNull() } ?: return false
+        val target = faceBox(m, childId)
+        val faces = image(m)?.let { FaceEngine.faces(it) } ?: return false
+        fun overlap(a: List<Float>, b: List<Float>): Float {
+            val w = minOf(a[0] + a[2], b[0] + b[2]) - maxOf(a[0], b[0])
+            val h = minOf(a[1] + a[3], b[1] + b[3]) - maxOf(a[1], b[1])
+            return if (w > 0 && h > 0) w * h else 0f
+        }
+        val face = (target?.let { t -> faces.maxByOrNull { overlap(it.box, t) } } ?: faces.firstOrNull()) ?: return false
         store = store.copy(
             refs = store.refs + (childId to store.refs[childId].orEmpty() + face.embedding),
             refsFrom = store.refsFrom + (childId to store.refsFrom[childId].orEmpty() + m.id),
@@ -285,20 +312,22 @@ object FaceIndex {
                 if (bmp != null) {
                     val faces = FaceEngine.faces(bmp)
                     val row = mutableMapOf<Int, Float>()
+                    val where = mutableMapOf<Int, List<Float>>()
                     for (face in faces) {
                         val sims = kids.map { it.id to similarity(face, refs[it.id].orEmpty()) }
                         for ((id, sim) in sims) {
                             // Closer to this child than to my other children by a clear margin.
                             val others = sims.filter { it.first != id }.maxOfOrNull { it.second } ?: 0f
                             val score = if (sims.size == 1 || sim - others >= MARGIN) sim else 0f
-                            row[id] = maxOf(row[id] ?: 0f, score)
+                            if (score > (row[id] ?: 0f)) { row[id] = score; where[id] = face.box }
                         }
                     }
                     var found = store.found
                     for (k in kids) if ((row[k.id] ?: 0f) >= THRESHOLD && !m.isTagged(k.id)) {
                         found = found + (k.id to (listOf(m) + found[k.id].orEmpty().filter { it.id != m.id }).take(1000))
                     }
-                    store = store.copy(scores = store.scores + (m.id to row), scoredWith = store.scoredWith + (m.id to store.version), found = found)
+                    store = store.copy(scores = store.scores + (m.id to row), scoredWith = store.scoredWith + (m.id to store.version), found = found,
+                        boxes = store.boxes + (m.id to where.filterKeys { (row[it] ?: 0f) >= THRESHOLD }))
                 }
                 scanning = (i + 1) to todo.size
                 if (i % 20 == 19) save()
