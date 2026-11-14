@@ -16,13 +16,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import com.majidkabir.aulaplus.R
 import androidx.compose.ui.unit.sp
 import com.majidkabir.aulaplus.AulaApp
 import com.majidkabir.aulaplus.core.L
 
 /** Selectable colour themes (same palettes as the iOS app) plus Material You on Android 12+. */
 enum class AppTheme(val key: String, val brandLight: Color, val brandDark: Color, val second: Color) {
+    APRICOT("Abrikos", Color(0xFFDE661C), Color(0xFFFF9E59), Color(0xFFFFC266)),
     OCEAN("Hav", Color(0xFF2966ED), Color(0xFF5C94FF), Color(0xFF33BDF2)),
     FOREST("Skov", Color(0xFF1A855C), Color(0xFF42C285), Color(0xFF8CCC4D)),
     SUNSET("Solnedgang", Color(0xFFE65438), Color(0xFFFF805C), Color(0xFFFCA838)),
@@ -35,6 +39,7 @@ enum class AppTheme(val key: String, val brandLight: Color, val brandDark: Color
     /** Child colours that would be confused with this theme's brand colour. */
     val clashing: List<Color>
         get() = when (this) {
+            APRICOT -> listOf(Palette.orange, Palette.brown)
             OCEAN, DYNAMIC -> listOf(Palette.indigo)
             FOREST -> listOf(Palette.green, Palette.mint, Palette.teal)
             SUNSET -> listOf(Palette.orange, Palette.brown)
@@ -44,11 +49,11 @@ enum class AppTheme(val key: String, val brandLight: Color, val brandDark: Color
 }
 
 object ThemeStore {
-    var theme by mutableStateOf(AppTheme.OCEAN)
+    var theme by mutableStateOf(AppTheme.APRICOT)
         private set
 
     fun load() {
-        theme = AppTheme.entries.firstOrNull { it.name == AulaApp.prefs.getString("theme", null) } ?: AppTheme.OCEAN
+        theme = AppTheme.entries.firstOrNull { it.name == AulaApp.prefs.getString("theme", null) } ?: AppTheme.APRICOT
     }
 
     fun set(t: AppTheme) {
@@ -71,7 +76,15 @@ object Palette {
     val indigo = Color(0xFF5856D6)
     val mint = Color(0xFF00C7BE)
     val brown = Color(0xFFA2845E)
-    private val all = listOf(orange, teal, pink, purple, green, indigo, mint, brown)
+    val jade = Color(0xFF2BA38E)
+    val violet = Color(0xFF7A5AF0)
+    private val all = listOf(orange, teal, pink, purple, green, indigo, mint, brown, jade, violet)
+
+    /** Same colour for the same name every time (people without a child colour). */
+    fun stable(name: String): Color {
+        val sum = name.fold(0) { acc, c -> (acc * 31 + c.code) and 0x7FFFFFFF }
+        return all[sum % all.size]
+    }
 
     fun colors(): List<Color> = all.filterNot { it in ThemeStore.theme.clashing }
     fun forChild(id: Int, children: List<Int>): Color {
@@ -81,20 +94,41 @@ object Palette {
     }
 }
 
-private val Base = Typography()
-private val AppTypography = Typography(
-    displaySmall = Base.displaySmall.copy(fontWeight = FontWeight.Bold),
-    headlineLarge = Base.headlineLarge.copy(fontWeight = FontWeight.Bold),
-    headlineMedium = Base.headlineMedium.copy(fontWeight = FontWeight.Bold),
-    headlineSmall = Base.headlineSmall.copy(fontWeight = FontWeight.Bold),
-    titleLarge = Base.titleLarge.copy(fontWeight = FontWeight.Bold),
-    titleMedium = Base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-    titleSmall = Base.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-    labelLarge = Base.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+/** Nunito: a rounded, friendly typeface (SIL OFL, bundled). */
+val Nunito = FontFamily(
+    Font(R.font.nunito_regular, FontWeight.Normal),
+    Font(R.font.nunito_semibold, FontWeight.Medium),
+    Font(R.font.nunito_semibold, FontWeight.SemiBold),
+    Font(R.font.nunito_bold, FontWeight.Bold),
+    Font(R.font.nunito_extrabold, FontWeight.ExtraBold),
+    Font(R.font.nunito_black, FontWeight.Black),
 )
 
-val LightBackground = Color(0xFFF3F4F8)
-val DarkBackground = Color(0xFF0C0D10)
+private val Base = Typography()
+private fun TextStyle.n(weight: FontWeight? = null) = copy(fontFamily = Nunito, fontWeight = weight ?: fontWeight)
+private val AppTypography = Typography(
+    displayLarge = Base.displayLarge.n(FontWeight.Black),
+    displayMedium = Base.displayMedium.n(FontWeight.Black),
+    displaySmall = Base.displaySmall.n(FontWeight.Black),
+    headlineLarge = Base.headlineLarge.n(FontWeight.Black),
+    headlineMedium = Base.headlineMedium.n(FontWeight.ExtraBold),
+    headlineSmall = Base.headlineSmall.n(FontWeight.ExtraBold),
+    titleLarge = Base.titleLarge.n(FontWeight.ExtraBold),
+    titleMedium = Base.titleMedium.n(FontWeight.Bold),
+    titleSmall = Base.titleSmall.n(FontWeight.Bold),
+    bodyLarge = Base.bodyLarge.n(),
+    bodyMedium = Base.bodyMedium.n(),
+    bodySmall = Base.bodySmall.n(),
+    labelLarge = Base.labelLarge.n(FontWeight.Bold),
+    labelMedium = Base.labelMedium.n(FontWeight.SemiBold),
+    labelSmall = Base.labelSmall.n(FontWeight.SemiBold),
+)
+
+/** Warm cream canvas (light) and warm near-black (dark). */
+val LightBackground = Color(0xFFFFF6EC)
+val DarkBackground = Color(0xFF16110D)
+/** Soft warm shadow colour under cards. */
+val CardShadow = Color(0xFF73471F)
 
 @Composable
 fun AulaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
@@ -106,17 +140,19 @@ fun AulaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> 
     } else if (dark) {
         darkColorScheme(
             primary = t.brandDark, onPrimary = if (t == AppTheme.GRAPHITE) Color.Black else Color.White,
-            secondary = t.second, background = DarkBackground, surface = Color(0xFF1C1C1F),
-            surfaceVariant = Color(0xFF26262B), surfaceContainer = Color(0xFF1C1C1F),
-            surfaceContainerHigh = Color(0xFF26262B), onSurfaceVariant = Color(0xFFA1A1AA),
+            secondary = t.second, background = DarkBackground, surface = Color(0xFF251E19),
+            surfaceVariant = Color(0xFF352B23), surfaceContainer = Color(0xFF251E19),
+            surfaceContainerHigh = Color(0xFF352B23), onSurfaceVariant = Color(0xFFB9A594),
+            outline = Color(0xFF6E5D50), outlineVariant = Color(0xFF3E332A),
             primaryContainer = t.brandDark.copy(alpha = 0.22f), onPrimaryContainer = t.brandDark,
         )
     } else {
         lightColorScheme(
             primary = t.brandLight, onPrimary = Color.White, secondary = t.second,
-            background = LightBackground, surface = Color.White, surfaceVariant = Color(0xFFEDEEF2),
-            surfaceContainer = Color.White, surfaceContainerHigh = Color(0xFFEDEEF2),
-            onSurfaceVariant = Color(0xFF6B6F7A),
+            background = LightBackground, surface = Color.White, surfaceVariant = Color(0xFFF6E8D9),
+            surfaceContainer = Color.White, surfaceContainerHigh = Color(0xFFF6E8D9),
+            onSurfaceVariant = Color(0xFF8E705A), onBackground = Color(0xFF3A2A1E), onSurface = Color(0xFF3A2A1E),
+            outline = Color(0xFFC9B3A0), outlineVariant = Color(0xFFEFE0D0),
             primaryContainer = t.brandLight.copy(alpha = 0.14f), onPrimaryContainer = t.brandLight,
         )
     }

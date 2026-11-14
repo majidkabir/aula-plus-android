@@ -89,6 +89,7 @@ import com.majidkabir.aulaplus.ui.components.InitialsAvatar
 import com.majidkabir.aulaplus.ui.components.Loading
 import com.majidkabir.aulaplus.ui.components.StaleBanner
 import com.majidkabir.aulaplus.ui.components.card
+import com.majidkabir.aulaplus.ui.components.pastelCard
 import com.majidkabir.aulaplus.ui.components.childColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -149,9 +150,10 @@ fun MessagesScreen() {
         item { StaleBanner(Repo.threads.error, Repo.threads.savedAt) }
         if (threads.isEmpty()) {
             item { if (Repo.threads.isLoading) Loading() else EmptyState(L.t(if (onlyUnread) "Ingen ulæste beskeder" else "Ingen beskeder"), Icons.Outlined.Inbox) }
-        } else item {
-            Column(Modifier.card(6.dp)) {
-                threads.forEachIndexed { i, t ->
+        } else threads.forEach { t ->
+            // Each thread on its own rounded card; unread ones get a soft brand tint.
+            item(key = "thread-${t.id}") {
+                Box(if (t.isRead) Modifier.card(6.dp) else Modifier.pastelCard(MaterialTheme.colorScheme.primary, 6.dp)) {
                     ThreadRow(t, onLongClick = { deleting = t }, onStar = {
                         scope.launch {
                             Repo.setMarked(t.id, !t.isMarked); updateOlder(t.id) { it.copy(isMarked = !t.isMarked) }
@@ -162,7 +164,6 @@ fun MessagesScreen() {
                         if (!t.isRead) updateOlder(t.id) { it.copy(isRead = true) }
                         nav.open("thread/${t.id}")
                     }
-                    if (i < threads.size - 1) HorizontalDivider(Modifier.padding(start = 26.dp))
                 }
             }
         }
@@ -226,14 +227,18 @@ fun ThreadRow(t: ThreadSummary, onLongClick: (() -> Unit)? = null, onStar: (() -
             .semantics(mergeDescendants = true) {
                 contentDescription = (if (t.isRead) "" else L.t("Ulæst. ")) + "${t.sender}. ${t.subject}. ${t.preview}"
             },
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.padding(top = 7.dp).size(9.dp).clip(CircleShape)
-            .background(if (t.isRead) Color.Transparent else MaterialTheme.colorScheme.primary))
+        Box {
+            InitialsAvatar(t.sender.ifEmpty { "Aula" }, com.majidkabir.aulaplus.ui.theme.Palette.stable(t.sender), 40.dp)
+            if (!t.isRead) Box(Modifier.align(Alignment.TopEnd).size(13.dp).clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surface).padding(2.dp).clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary))
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(t.sender.ifEmpty { "Aula" }, style = MaterialTheme.typography.titleSmall,
-                    fontWeight = if (t.isRead) FontWeight.Normal else FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    fontWeight = if (t.isRead) FontWeight.Bold else FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f))
                 Text(AulaDate.listDate(t.dateMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

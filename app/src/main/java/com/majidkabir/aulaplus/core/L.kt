@@ -319,6 +319,8 @@ object L {
         "Ugeplan ikke understøttet endnu" to "Week plan not supported yet",
         "Ingen ugeplan i Aula" to "No week plan in Aula",
         "Værktøjer i Aula" to "Tools in Aula",
+        "Se dem i galleriet" to "See them in the gallery",
+        "Abrikos" to "Apricot",
         "Billeder" to "Photos",
         "Dine børns institution deler ingen ugeplan i Aula. Det er normalt for vuggestuer og børnehaver." to "Your children's institution doesn't share a week plan in Aula. That's normal for nurseries and kindergartens.",
         "Ugeplanen kan ikke vises endnu" to "Week plan can't be shown yet",
