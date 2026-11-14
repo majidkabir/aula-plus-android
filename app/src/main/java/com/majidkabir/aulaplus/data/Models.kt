@@ -196,6 +196,8 @@ data class Media(
     val description: String? = null,
     /** Aula's `currentUserCanEditTags`: whether this user may tag people in the photo. */
     val canEditTags: Boolean = false,
+    /** A mid-size version for finding faces (large/medium thumbnail, else the full photo). */
+    val scanUrl: String? = null,
 ) {
     fun isTagged(childId: Int) = tags.any { it.id == childId }
 }

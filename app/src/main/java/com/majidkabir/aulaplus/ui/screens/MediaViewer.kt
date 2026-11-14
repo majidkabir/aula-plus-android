@@ -40,6 +40,8 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Face
+import com.majidkabir.aulaplus.data.FaceIndex
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Share
@@ -78,8 +80,14 @@ fun MediaViewer(initialItems: List<Media>, start: Int, children: List<Child> = e
     // Local copy so a new tag shows at once.
     var items by remember { mutableStateOf(initialItems) }
     var tagMenu by remember { mutableStateOf(false) }
+    var faceMenu by remember { mutableStateOf(false) }
     var tagging by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val learnFace: (Media, Child) -> Unit = { m, c ->
+        scope.launch {
+            if (!FaceIndex.confirm(m, c.id)) Toast.makeText(ctx, L.t("Fandt ikke et ansigt på billedet."), Toast.LENGTH_SHORT).show()
+        }
+    }
     val pager = rememberPagerState(initialPage = start.coerceIn(0, (items.size - 1).coerceAtLeast(0))) { items.size }
     var sharing by remember { mutableStateOf(false) }
     var showInfo by remember { mutableStateOf(true) }
@@ -108,13 +116,25 @@ fun MediaViewer(initialItems: List<Media>, start: Int, children: List<Child> = e
             }
             val current = items.getOrNull(pager.currentPage)
             AnimatedVisibility(showInfo && current != null, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
-                current?.let { MediaInfo(it, children, it.id in newIds) }
+                current?.let { MediaInfo(it, children, it.id in newIds, onLearn = { c -> learnFace(it, c) }) }
             }
             Row(Modifier.fillMaxWidth().systemBarsPadding().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose) { Icon(Icons.Filled.Close, L.t("Luk"), tint = Color.White) }
                 Text(if (items.isEmpty()) "" else "${pager.currentPage + 1} / ${items.size}", color = Color.White,
                     style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 val shown = items.getOrNull(pager.currentPage)
+                // "Det er Emma" / "Ikke Emma": teaches face finding (only on this phone, nothing goes to Aula).
+                if (shown != null && !shown.isVideo && FaceIndex.isEnabled && children.isNotEmpty()) Box {
+                    IconButton(onClick = { faceMenu = true }) { Icon(Icons.Filled.Face, L.t("Ansigtsgenkendelse"), tint = Color.White) }
+                    DropdownMenu(faceMenu, onDismissRequest = { faceMenu = false }) {
+                        children.forEach { c ->
+                            if (FaceIndex.isFaceMatch(shown, c.id)) DropdownMenuItem(text = { Text(L.t("Det er ikke %s", c.firstName)) },
+                                onClick = { faceMenu = false; FaceIndex.reject(shown, c.id) })
+                            else if (!shown.isTagged(c.id)) DropdownMenuItem(text = { Text(L.t("Det er %s", c.firstName)) },
+                                onClick = { faceMenu = false; learnFace(shown, c) })
+                        }
+                    }
+                }
                 if (shown != null && shown.canEditTags && children.isNotEmpty()) Box {
                     IconButton(enabled = !tagging, onClick = { tagMenu = true }) {
                         if (tagging) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
@@ -165,12 +185,22 @@ fun MediaViewer(initialItems: List<Media>, start: Int, children: List<Child> = e
 
 /** Title, "new" marker and the people tagged in the photo; own children first and in their colour. */
 @Composable
-private fun MediaInfo(m: Media, children: List<Child>, isNew: Boolean) {
+private fun MediaInfo(m: Media, children: List<Child>, isNew: Boolean, onLearn: (Child) -> Unit) {
     val mine = children.map { it.id }.toSet()
     val tags = m.tags.sortedBy { if (it.id in mine) 0 else 1 }
-    if (m.title == null && tags.isEmpty() && !isNew) return
+    val maybe = children.filter { FaceIndex.isFaceMatch(m, it.id) }
+    if (m.title == null && tags.isEmpty() && !isNew && maybe.isEmpty()) return
     Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f))))
         .navigationBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        maybe.forEach { c ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FaceBadge(size = 18.dp)
+                Text(L.t("Måske %s", c.firstName), color = Color.White, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                androidx.compose.material3.Button(onClick = { onLearn(c) },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759))) { Text(L.t("Ja")) }
+                androidx.compose.material3.OutlinedButton(onClick = { FaceIndex.reject(m, c.id) }) { Text(L.t("Nej"), color = Color.White) }
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (isNew) Text(L.t("NY"), color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
                 modifier = Modifier.clip(CircleShape).background(Color(0xFFFF3B30)).padding(horizontal = 6.dp, vertical = 2.dp))
