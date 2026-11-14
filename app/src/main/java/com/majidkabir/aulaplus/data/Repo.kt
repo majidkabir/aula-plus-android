@@ -156,6 +156,15 @@ object Repo {
         }
     }
 
+    /** The child's drop-off/pick-up plans for the next 10 days (to show the next drop-off on a day off). */
+    fun upcomingPlans(childId: Int): Loadable<List<DayPlan>> {
+        val today = AulaDate.today()
+        val key = "next-plans-$childId-$today"
+        return dayPlans.getOrPut(key) {
+            Loadable(key, ListSerializer(DayPlan.serializer())) { AulaApi.dayPlans(listOf(childId), today.plusDays(1), today.plusDays(10)) }
+        }
+    }
+
     fun markRead(threadId: String) = threads.mutate { list -> list.map { if (it.id == threadId) it.copy(isRead = true) else it } }
     fun setMarked(threadId: String, marked: Boolean) =
         threads.mutate { list -> list.map { if (it.id == threadId) it.copy(isMarked = marked) else it } }

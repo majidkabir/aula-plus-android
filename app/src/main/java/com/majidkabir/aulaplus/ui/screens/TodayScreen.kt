@@ -204,7 +204,9 @@ private fun greeting(): String {
 fun TodayHero(todays: List<Event>) {
     val nav = LocalNav.current
     val ids = AppState.visibleChildren.map { it.id }.toSet()
-    val pickup = (Repo.presence.value ?: emptyList()).filter { it.childId in ids && it.checkOut == null }.mapNotNull { it.plannedExit }.minOrNull()
+    val todays0 = (Repo.presence.value ?: emptyList()).filter { it.childId in ids }
+    val pickup = if (todays0.isNotEmpty() && todays0.all { it.isDayOff }) L.t("Fri")
+        else todays0.filter { it.checkOut == null && !it.isDayOff }.mapNotNull { it.plannedExit }.minOrNull()
     val now = System.currentTimeMillis()
     val nextEvent = todays.firstOrNull { it.startMs > now }
     val nextDate = (Repo.importantDates.value ?: emptyList()).sortedBy { it.startMs }.firstOrNull { it.startMs > now }
@@ -281,9 +283,9 @@ private data class Fact(val icon: ImageVector, val label: String, val value: Str
 
 private fun facts(p: Presence): List<Fact> = listOfNotNull(
     p.checkIn?.let { Fact(Icons.Filled.Login, L.t("Kom"), it) },
-    if (p.checkIn == null) p.plannedEntry?.let { Fact(Icons.Filled.Login, L.t("Afleveres"), it) } else null,
+    if (p.checkIn == null && !Presence.isPlaceholder(p.plannedEntry, p.plannedExit)) p.plannedEntry?.let { Fact(Icons.Filled.Login, L.t("Afleveres"), it) } else null,
     p.checkOut?.let { Fact(Icons.Filled.Logout, L.t("Gik"), it) },
-    if (p.checkOut == null) p.plannedExit?.let { Fact(Icons.Filled.Logout, L.t("Hentes"), it) } else null,
+    if (p.checkOut == null && !Presence.isPlaceholder(p.plannedEntry, p.plannedExit)) p.plannedExit?.let { Fact(Icons.Filled.Logout, L.t("Hentes"), it) } else null,
     p.exitWith?.let { Fact(Icons.Filled.Person, L.t("Hentes af"), it) },
     p.location?.let { Fact(Icons.Filled.Place, L.t("Lokation"), it) },
 )
@@ -291,6 +293,9 @@ private fun facts(p: Presence): List<Fact> = listOfNotNull(
 @Composable
 fun ChildDayCard(child: Child, presence: Presence?, events: List<Event>, onOpen: () -> Unit) {
     val color = childColor(child.id)
+    // Not coming today (weekend, holiday): no times, no timeline, the next drop-off instead.
+    val dayOff = presence?.isDayOff == true
+    val weekend = AulaDate.today().dayOfWeek.value >= 6
     val now = System.currentTimeMillis()
     val upcoming = events.filter { it.endMs >= now }
     val large = LocalDensity.current.fontScale > 1.5f
@@ -302,7 +307,8 @@ fun ChildDayCard(child: Child, presence: Presence?, events: List<Event>, onOpen:
                     Text(child.firstName, style = MaterialTheme.typography.headlineSmall)
                     Text(child.institutionName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    presence?.presenceStatus?.let { StatusPill(it.label, it.icon(), color) }
+                    if (dayOff) StatusPill(if (weekend) L.t("Weekend") else L.t("Fri i dag"), if (weekend) Icons.Filled.WbSunny else Icons.Filled.Home, color)
+                    else presence?.presenceStatus?.let { StatusPill(it.label, it.icon(), color) }
                 }
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.outline)
             }
@@ -339,7 +345,8 @@ fun ChildDayCard(child: Child, presence: Presence?, events: List<Event>, onOpen:
                     }
                 }
             }
-            if (presence != null || events.isNotEmpty()) DayTimeline(presence, events, color)
+            if (dayOff) NextDropOff(child.id, weekend, color)
+            else if (presence != null || events.isNotEmpty()) DayTimeline(presence, events, color)
             if (events.isNotEmpty()) {
                 HorizontalDivider()
                 if (upcoming.isEmpty()) {
@@ -376,6 +383,34 @@ fun ChildDayCard(child: Child, presence: Presence?, events: List<Event>, onOpen:
                 }
             }
         }
+    }
+}
+
+/** "Næste aflevering · Mandag 07:45 · hentes 16:00". */
+@Composable
+private fun NextDropOff(childId: Int, weekend: Boolean, color: Color) {
+    val plans = Repo.upcomingPlans(childId)
+    LaunchedEffect(childId) { plans.load(3600) }
+    val next = (plans.value ?: emptyList()).sortedBy { it.date }
+        .firstOrNull { !it.isOnVacation && it.entry != null && !Presence.isPlaceholder(it.entry, it.exit) }
+    if (next?.entry != null) {
+        val date = java.time.LocalDate.parse(next.date)
+        val day = if (date == AulaDate.today().plusDays(1)) L.t("I morgen")
+            else AulaDate.weekdayDayMonth(date).substringBefore(' ')
+        Row(Modifier.semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.size(30.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.CalendarMonth, null, tint = color, modifier = Modifier.size(18.dp))
+            }
+            Column {
+                Text(L.t("Næste aflevering"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (next.exit != null) L.t("%s %s · hentes %s", day, next.entry, next.exit) else "$day ${next.entry}",
+                    style = MaterialTheme.typography.titleSmall)
+            }
+        }
+    } else {
+        Text(L.t(if (weekend) "Ingen aflevering i weekenden" else "Ingen aflevering i dag"),
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

@@ -279,9 +279,13 @@ object AulaApi {
                             is JsonObject -> l.str("name")
                             else -> null
                         }
+                        // No plan for the day (weekend, holiday): Aula fills in 05:00–23:59. Show no times then.
+                        var entry = AulaDate.shortTime(d.str("entryTime"))
+                        var exit = AulaDate.shortTime(d.str("exitTime"))
+                        val weekend = AulaDate.today().dayOfWeek.value >= 6
+                        if (Presence.isPlaceholder(entry, exit) || weekend) { entry = null; exit = null }
                         Presence(cid, d.int("status"), AulaDate.shortTime(d.str("checkInTime")),
-                            AulaDate.shortTime(d.str("checkOutTime")), AulaDate.shortTime(d.str("entryTime")),
-                            AulaDate.shortTime(d.str("exitTime")), d.str("exitWith"), d.str("comment"), loc)
+                            AulaDate.shortTime(d.str("checkOutTime")), entry, exit, d.str("exitWith"), d.str("comment"), loc)
                     }
             }
         }.awaitAll().flatten()
