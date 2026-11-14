@@ -533,6 +533,48 @@ private fun FaceBar(childId: Int?) {
     }
 }
 
+/**
+ * "Lær fra Fotos": the parent picks photos of the child with the system photo picker; the child's
+ * face is learned from them on the phone.
+ */
+@Composable
+private fun LearnFromPhotosButton(child: com.majidkabir.aulaplus.data.Child) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var working by remember { mutableStateOf(false) }
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(60),
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        working = true
+        scope.launch {
+            val bitmaps = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                uris.mapNotNull { uri -> runCatching { decodeScaled(ctx, uri, 1280) }.getOrNull() }
+            }
+            val n = FaceIndex.learnFromPhotos(child.id, bitmaps)
+            working = false
+            Toast.makeText(ctx, if (n > 0) L.t("Lærte %ss ansigt fra %d billeder.", child.firstName, n)
+                else L.t("Fandt ikke %ss ansigt. Vælg flere billeder, hvor ansigtet ses tydeligt forfra.", child.firstName), Toast.LENGTH_LONG).show()
+        }
+    }
+    androidx.compose.material3.OutlinedButton(enabled = !working, onClick = {
+        picker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }) {
+        if (working) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+        else Text(L.t("Lær fra Fotos"))
+    }
+}
+
+/** Decodes a picked photo at most [max] px on the long side, upright. */
+private fun decodeScaled(ctx: android.content.Context, uri: android.net.Uri, max: Int): android.graphics.Bitmap {
+    val src = android.graphics.ImageDecoder.createSource(ctx.contentResolver, uri)
+    return android.graphics.ImageDecoder.decodeBitmap(src) { decoder, info, _ ->
+        val scale = max.toFloat() / maxOf(info.size.width, info.size.height)
+        if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+        decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+    }
+}
+
 @Composable
 private fun FindChildCard(child: com.majidkabir.aulaplus.data.Child) {
     val purple = Color(0xFFAF52DE)
@@ -543,8 +585,10 @@ private fun FindChildCard(child: com.majidkabir.aulaplus.data.Child) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (FaceIndex.hasReferences(child.id)) {
                 Text(L.t("%d billeder fundet på telefonen", FaceIndex.found(child.id).size), style = MaterialTheme.typography.titleSmall)
-                Text(L.t("Billeder uden tag, hvor Aula+ genkender %s. Markeret med ✦.", child.firstName), style = MaterialTheme.typography.bodySmall,
+                Text(L.t("Billeder uden tag, hvor Aula+ genkender %s. Markeret med ✦. Flere rigtige med \"Lær fra Fotos\": vælg nye billeder af %s.",
+                    child.firstName, child.firstName), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LearnFromPhotosButton(child)
                 val all = FaceFinding.allAlbums
                 if (all != null) {
                     LinearProgressIndicator(progress = { all.first.toFloat() / all.second.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
@@ -563,6 +607,7 @@ private fun FindChildCard(child: com.majidkabir.aulaplus.data.Child) {
                 Text(L.t("Aula+ lærer %ss ansigt fra billeder med tag. Har %s ingen, så åbn et billede og vælg \"Det er %s\" under ☺.",
                     child.firstName, child.firstName, child.firstName), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LearnFromPhotosButton(child)
             }
         }
     }
