@@ -1,5 +1,7 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.ui.components.openSafely
+import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -115,7 +117,27 @@ fun ParentTaskRow(t: ParentTask) {
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+        AddToCalendarButton(t)
     }
+}
+
+/** Opens the phone's calendar with an all-day event for the task (on its day, else today). */
+@Composable
+fun AddToCalendarButton(t: ParentTask) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Icon(Icons.Filled.EventAvailable, null, tint = Orange,
+        modifier = Modifier.size(24.dp).clickable {
+            val day = t.dueDate ?: LocalDate.now(AulaDate.copenhagen)
+            val start = day.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+            val intent = android.content.Intent(android.content.Intent.ACTION_INSERT)
+                .setData(android.provider.CalendarContract.Events.CONTENT_URI)
+                .putExtra(android.provider.CalendarContract.Events.TITLE, t.title)
+                .putExtra(android.provider.CalendarContract.Events.DESCRIPTION, L.t("Fra Aula: %s", t.sourceTitle))
+                .putExtra(android.provider.CalendarContract.EXTRA_EVENT_ALL_DAY, true)
+                .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, start)
+                .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, start + 86_400_000L)
+            ctx.openSafely(intent)
+        }.semantics { contentDescription = L.t("Tilføj til Kalender") })
 }
 
 fun dueLabel(d: LocalDate): String {
@@ -145,10 +167,11 @@ fun SourceTasksBanner(key: String) {
             Row(Modifier.fillMaxWidth().clickable { ParentTaskFinder.toggle(t) }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(if (isDone) Icons.Filled.CheckCircle else Icons.Outlined.Circle, null,
                     tint = if (isDone) Color(0xFF34C759) else MaterialTheme.colorScheme.outline, modifier = Modifier.size(22.dp))
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(t.title, style = MaterialTheme.typography.titleSmall, textDecoration = if (isDone) TextDecoration.LineThrough else null)
                     t.dueDate?.let { Text(dueLabel(it), style = MaterialTheme.typography.bodySmall, color = Orange) }
                 }
+                AddToCalendarButton(t)
             }
         }
     }

@@ -204,6 +204,8 @@ object L {
         "Ingen kontakter" to "No contacts",
         "Ingen notifikationer" to "No notifications",
         "Ingen opslag" to "No posts",
+        "Fra Aula: %s" to "From Aula: %s",
+        "Tilføj til Kalender" to "Add to Calendar",
         "Skal gøres" to "To do",
         "Vis alle" to "See all",
         "Læser beskeder %d af %d …" to "Reading messages %d of %d …",
