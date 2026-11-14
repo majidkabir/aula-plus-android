@@ -2,6 +2,9 @@
 
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.material.icons.filled.FrontHand
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Cake
@@ -190,6 +193,8 @@ fun MoreScreen() {
                 MenuRow(L.t("Fødselsdage"), { IconTile(Icons.Filled.Cake, Color(0xFFFF2D55)) }) { nav.open("birthdays") }
                 MenuRow(L.t("Dokumenter"), { IconTile(Icons.Filled.Description, Color(0xFF007AFF)) }) { nav.open("documents") }
                 MenuRow(L.t("Kontakter"), { IconTile(Icons.Filled.People, Color(0xFF34C759)) }) { nav.open("contacts") }
+                MenuRow(L.t("Grupper"), { IconTile(Icons.Filled.Groups, Color(0xFF32ADE6)) }) { nav.open("groups") }
+                MenuRow(L.t("Søg i Aula"), { IconTile(Icons.Filled.Search, Color(0xFF5856D6)) }) { nav.open("search") }
             }
         }
         item {
@@ -214,6 +219,7 @@ fun MoreScreen() {
             MenuGroup(null) {
                 MenuRow(L.t("Notifikationer"), { IconTile(Icons.Filled.Notifications, Color(0xFFFF3B30)) }) { nav.open("notifications") }
                 MenuRow(L.t("Min profil"), { IconTile(Icons.Filled.AccountCircle, Color(0xFFAF52DE)) }) { nav.open("profile") }
+                MenuRow(L.t("Samtykker"), { IconTile(Icons.Filled.FrontHand, Color(0xFF00C7BE)) }) { nav.open("consents") }
                 MenuRow(L.t("Indstillinger"), { IconTile(Icons.Filled.Settings, Color(0xFF8E8E93)) }) { nav.open("settings") }
             }
         }

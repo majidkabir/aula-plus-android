@@ -406,7 +406,7 @@ object AulaApi {
             }.sortedBy { it.date }
 
     suspend fun closedDays(codes: List<String>): List<ClosedDays> =
-        call("presence.getClosedDays", codes.map { "institutionCodes[]" to it }).objects().flatMap { inst ->
+        call("presence.getClosedDays", codes.map { "institutionCodes[]" to it }).asObj().objs("institutionClosedDays").flatMap { inst ->
             val code = inst.str("institutionCode") ?: return@flatMap emptyList()
             inst.obj("closedDaysOverview").objs("closedDays").mapNotNull { c ->
                 val s = parseDay(c.str("startDate")) ?: return@mapNotNull null
@@ -416,15 +416,28 @@ object AulaApi {
 
     // My profile
 
-    suspend fun myProfiles(ids: List<Int>): List<MyProfile> =
-        call("profiles.getProfileMasterData", ids.map { "instProfileIds[]" to "$it" }).asObj().objs("institutionProfiles").mapNotNull { p ->
-            val id = p.int("id") ?: p.int("institutionProfileId") ?: return@mapNotNull null
-            MyProfile(id, p.int("profileId"), p.personName() ?: p.str("name") ?: "",
+    suspend fun myProfiles(ids: List<Int>): List<MyProfile> {
+        fun make(p: JsonObject, child: Boolean): MyProfile? {
+            val id = p.int("id") ?: p.int("institutionProfileId") ?: return null
+            return MyProfile(id, p.int("profileId"), p.personName() ?: p.str("name") ?: "",
                 p.str("institutionName") ?: p.obj("institution").str("institutionName"),
                 p.str("institutionCode") ?: p.obj("institution").str("institutionCode"),
                 p.str("email").orEmpty(), p.str("mobilePhoneNumber").orEmpty(), p.str("homePhoneNumber").orEmpty(), p.str("workPhoneNumber").orEmpty(),
-                p.obj("profilePicture").str("url") ?: p.str("profilePictureUrl"), p.bool("currentUserCanEditProfilePicture") ?: true)
+                p.obj("profilePicture").str("url") ?: p.str("profilePictureUrl"), p.bool("currentUserCanEditProfilePicture") ?: true,
+                addressOf(p.obj("address")), child, p.bool("currentUserCanEditContactInformation") ?: true)
         }
+        val mine = call("profiles.getProfileMasterData", ids.map { "instProfileIds[]" to "$it" }).asObj().objs("institutionProfiles")
+        val out = mine.mapNotNull { make(it, false) }.toMutableList()
+        // My children's contact details (the same page on aula.dk).
+        mine.forEach { p -> p.objs("relations").filter { it.str("role") == "child" }.forEach { r -> make(r, true)?.let { c -> if (out.none { it.id == c.id }) out += c } } }
+        return out
+    }
+
+    fun addressOf(a: JsonObject?): String? {
+        a ?: return null
+        val line2 = listOfNotNull(a.str("postalCode") ?: a.int("postalCode")?.toString(), a.str("postalDistrict")).filter { it.isNotBlank() }.joinToString(" ")
+        return listOfNotNull(a.str("street")?.takeIf { it.isNotBlank() }, line2.ifBlank { null }).joinToString(", ").ifBlank { null }
+    }
 
     suspend fun saveContactInfo(profiles: List<MyProfile>) {
         call("profiles.updateProfileMasterData", body = buildJsonObject {
@@ -433,7 +446,8 @@ object AulaApi {
                     add(buildJsonObject {
                         if (p.profileId == null) put("profileId", JsonNull) else put("profileId", p.profileId)
                         put("institutionProfileId", p.id); put("homePhoneNumber", p.homePhone); put("mobilePhoneNumber", p.mobilePhone)
-                        put("workPhoneNumber", p.workPhone); put("email", p.email)
+                        if (!p.isChild) put("workPhoneNumber", p.workPhone)
+                        put("email", p.email)
                     })
                 }
             }
@@ -812,10 +826,18 @@ object AulaApi {
         }).objects()
         val merged = linkedMapOf<String, Event>()
         for (e in list) {
-            val id = e.str("id") ?: continue
-            val start = AulaDate.parse(e.str("startDateTime")) ?: continue
+            val ev = eventOf(e) ?: continue
+            val id = ev.id
+            merged[id] = merged[id]?.let { it.copy(childIds = (it.childIds + ev.childIds).distinct()) } ?: ev
+        }
+        return merged.values.sortedBy { it.startMs }
+    }
+
+    private fun eventOf(e: JsonObject): Event? {
+            val id = e.str("id") ?: return null
+            val start = AulaDate.parse(e.str("startDateTime")) ?: return null
             val people = e.obj("lesson").objs("participants")
-            val ev = Event(
+            return Event(
                 id = id, title = e.str("title") ?: L.t("Begivenhed"), startMs = start,
                 endMs = AulaDate.parse(e.str("endDateTime")) ?: start, allDay = e.bool("allDay") ?: false,
                 location = e.obj("primaryResource").str("name"),
@@ -825,9 +847,91 @@ object AulaApi {
                 type = e.str("type"),
                 childIds = e.arr("belongsToProfiles").mapNotNull { (it as? JsonPrimitive)?.content?.toIntOrNull() },
             )
-            merged[id] = merged[id]?.let { it.copy(childIds = (it.childIds + ev.childIds).distinct()) } ?: ev
+    }
+
+    // Groups, search and consents (as on aula.dk)
+
+    suspend fun myGroups(): List<AulaGroup> =
+        call("profiles.getProfileContext", listOf("portalrole" to "guardian")).asObj().objs("institutions").flatMap { inst ->
+            inst.objs("groups").mapNotNull { g -> AulaGroup(g.int("id") ?: return@mapNotNull null, g.str("name") ?: L.t("Gruppe")) }
+        }.distinctBy { it.id }
+
+    suspend fun groupMembers(groupId: Int): List<GroupMember> =
+        call("groups.getMemberships", listOf("groupId" to "$groupId")).asObj().objs("memberships").mapNotNull { m ->
+            val p = m.obj("institutionProfile") ?: return@mapNotNull null
+            GroupMember(p.int("id") ?: return@mapNotNull null, p.personName() ?: "", m.str("institutionRole") ?: p.str("role"),
+                p.str("metadata")?.takeIf { it.isNotBlank() } ?: p.str("mainGroupName"), p.obj("profilePicture").str("url"))
+        }.distinctBy { it.id }.sortedBy { it.name.lowercase() }
+
+    suspend fun groupPosts(groupId: Int): List<Post> =
+        call("posts.getAllPosts", listOf("parent" to "group", "groupId" to "$groupId", "index" to "0", "limit" to "20"))
+            .asObj().objs("posts").mapNotNull(::post)
+
+    suspend fun groupAlbums(groupId: Int): List<Album> {
+        val d = call("gallery.getAlbums", listOf("groupId" to "$groupId", "index" to "0", "limit" to "40", "sortOn" to "createdAt",
+            "orderDirection" to "desc", "filterBy" to "all"))
+        val list = (d as? JsonArray)?.objects() ?: d.asObj().objs("albums")
+        return list.mapNotNull { a ->
+            val cover = a.arr("thumbnailsUrls").firstNotNullOfOrNull { (it as? JsonPrimitive)?.content ?: it.asObj().str("url") }
+            Album(a.int("id") ?: return@mapNotNull null, a.str("title") ?: "Album", AulaDate.parse(a.str("creationDate")), cover, a.int("size") ?: a.int("totalSize"))
+        }.distinctBy { it.id }
+    }
+
+    suspend fun groupEvents(groupId: Int, from: LocalDate, to: LocalDate): List<Event> {
+        val off = { d: LocalDate -> d.atStartOfDay(AulaDate.copenhagen).offset.id.let { if (it == "Z") "+00:00" else it } }
+        return call("calendar.geteventsbygroupid", listOf("groupId" to "$groupId", "start" to "${from}T00:00:00.0000${off(from)}",
+            "end" to "${to}T23:59:59.9990${off(to)}")).objects().mapNotNull(::eventOf).distinctBy { it.id }.sortedBy { it.startMs }
+    }
+
+    suspend fun search(text: String, kind: SearchKind, guardianIds: List<Int>, childIds: List<Int>): List<SearchHit> {
+        val d = call("search.findGeneric", listOf("limit" to "30", "offset" to "0") + ids(guardianIds, "institutionProfileIds[]") +
+            ids(childIds, "activeChildrenInstitutionProfileIds[]") + listOf("text" to text, "docType" to kind.docType, "docTypeCount" to "true")).asObj()
+        if (kind == SearchKind.PHOTOS) return d.objs("mediaResults").mapNotNull { m ->
+            val media = mediaOf(m) ?: return@mapNotNull null
+            SearchHit("m${media.id}", kind, media.title ?: "", null, media.dateMs, media.thumbUrl, media = media)
         }
-        return merged.values.sortedBy { it.startMs }
+        return d.objs("results").mapNotNull { r ->
+            val id = r.str("docId") ?: r.str("id") ?: return@mapNotNull null
+            when (kind) {
+                SearchKind.POSTS -> SearchHit("p$id", kind, r.str("title") ?: L.t("Opslag"),
+                    Html.plain(r.html("content").ifBlank { r.str("description").orEmpty() }).ifBlank { null },
+                    AulaDate.parse(r.str("timestamp") ?: r.str("publishAt")), null, postId = id.toIntOrNull())
+                SearchKind.EVENTS -> SearchHit("e$id", kind, r.str("title") ?: L.t("Begivenhed"), r.str("location") ?: r.str("creatorAulaName"),
+                    AulaDate.parse(r.str("startDateTime")), null, eventId = id)
+                else -> {
+                    val name = r.str("name") ?: r.str("title") ?: ""
+                    val c = Contact(id.toIntOrNull() ?: 0, name, r.str("metadata"), pictureUrl = r.obj("profilePicture").str("url"),
+                        role = r.str("portalRole"), institutionName = r.str("institutionName"), group = r.obj("mainGroup").str("name"))
+                    SearchHit("c$id", kind, name, r.str("metadata") ?: r.str("institutionName"), null, c.pictureUrl, contact = c)
+                }
+            }
+        }
+    }
+
+    suspend fun consents(): List<ConsentItem> = call("consents.getConsentResponses").objects().flatMap { p ->
+        val pid = p.obj("institutionProfile").int("id") ?: return@flatMap emptyList()
+        val name = p.obj("institutionProfile").personName() ?: ""
+        p.objs("consentResponses").mapNotNull { c ->
+            ConsentItem(c.int("consentId") ?: return@mapNotNull null, pid, name, c.str("consentDescription") ?: "",
+                c.arr("allowedAnswers").mapNotNull { (it as? JsonPrimitive)?.content }, c.str("consentResponseAnswer"), c.bool("editable") ?: false)
+        }
+    }
+
+    suspend fun saveConsents(items: List<ConsentItem>) {
+        call("consents.updateConsentResponses", body = buildJsonObject {
+            putJsonArray("institutionProfilesConsentAnswers") {
+                items.groupBy { it.profileId }.forEach { (pid, list) ->
+                    add(buildJsonObject {
+                        put("institutionProfileId", pid)
+                        putJsonArray("institutionProfileConsentUpdates") {
+                            list.filter { it.answer != null }.forEach { c ->
+                                add(buildJsonObject { put("consentId", c.id); put("answer", c.answer); put("fromDate", JsonNull); put("toDate", JsonNull) })
+                            }
+                        }
+                    })
+                }
+            }
+        })
     }
 
     suspend fun eventDetail(id: String): EventDetail {
@@ -1149,7 +1253,8 @@ object AulaApi {
                     c.str("email"), c.obj("profilePicture").str("url") ?: c.str("profilePictureUrl"),
                     role = c.str("role"), mobilePhone = c.str("mobilePhoneNumber") ?: c.str("phone"), homePhone = c.str("homePhoneNumber"),
                     workPhone = c.str("workPhoneNumber"), institutionName = c.str("institutionName"),
-                    group = c.obj("mainGroup").str("name") ?: c.str("metadata"), relations = rels)
+                    group = c.obj("mainGroup").str("name") ?: c.str("metadata"), relations = rels,
+                    address = addressOf(c.obj("address")), birthday = c.str("birthday")?.take(10), institutionRole = c.str("institutionRole"))
             }
             all += batch
             if (batch.size < 20) break

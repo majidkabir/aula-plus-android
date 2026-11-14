@@ -416,6 +416,10 @@ data class Contact(
     val group: String? = null,
     /** Children of a parent, or parents of a child. */
     val relations: List<ContactRelation> = emptyList(),
+    val address: String? = null,
+    /** yyyy-MM-dd */
+    val birthday: String? = null,
+    val institutionRole: String? = null,
 )
 
 @Serializable
@@ -426,7 +430,20 @@ data class MyProfile(
     val id: Int, val profileId: Int?, val name: String, val institutionName: String?, val institutionCode: String?,
     val email: String, val mobilePhone: String, val homePhone: String, val workPhone: String,
     val pictureUrl: String?, val canEditPicture: Boolean,
+    val address: String? = null, val isChild: Boolean = false, val canEditContact: Boolean = true,
 )
+
+data class GroupMember(val id: Int, val name: String, val role: String?, val detail: String?, val pictureUrl: String?)
+
+data class ConsentItem(val id: Int, val profileId: Int, val profileName: String, val text: String, val allowed: List<String>,
+                       val answer: String?, val editable: Boolean)
+
+enum class SearchKind(val docType: String, val label: String) {
+    POSTS("Post", "Opslag"), PEOPLE("Profile", "Personer"), EVENTS("Event", "Begivenheder"), PHOTOS("Media", "Billeder")
+}
+
+data class SearchHit(val id: String, val kind: SearchKind, val title: String, val detail: String?, val dateMs: Long?, val pictureUrl: String?,
+                     val postId: Int? = null, val eventId: String? = null, val media: Media? = null, val contact: Contact? = null)
 
 /** Someone who may pick up a child: family from Aula, or a name the parents added (removable). */
 data class PickupPerson(val id: String, val name: String, val relation: String?, val suggestionId: Int?)

@@ -147,13 +147,18 @@ fun ContactDetailScreen(key: String) {
                 }
             }
         }
-        val info = listOfNotNull(role?.let { L.t("Rolle") to it }, c.group?.let { L.t("Gruppe") to it }, c.institutionName?.let { L.t("Institution") to it })
+        val info = listOfNotNull((roleName(c.institutionRole) ?: role)?.let { L.t("Rolle") to it }, c.group?.let { L.t("Gruppe") to it },
+            c.institutionName?.let { L.t("Institution") to it },
+            c.birthday?.let { b -> runCatching { LocalDate.parse(b).format(DateTimeFormatter.ofPattern("d. MMMM yyyy", L.locale)) }.getOrNull()?.let { L.t("Fødselsdag") to it } },
+            c.address?.let { L.t("Adresse") to it })
         if (info.isNotEmpty()) item { MenuGroup(L.t("Om")) { info.forEach { (k, v) -> InfoLine(k, v, null) } } }
     }
 }
 
 private fun roleName(role: String?) = when (role?.lowercase()) {
-    "guardian" -> L.t("Forælder"); "child" -> L.t("Barn"); "employee" -> L.t("Ansat"); null, "" -> null; else -> role
+    "guardian" -> L.t("Forælder"); "child", "daycare", "early-student", "middle-late-student" -> L.t("Barn"); "employee" -> L.t("Ansat")
+    "preschool-teacher", "pedagogue" -> L.t("Pædagog"); "teacher" -> L.t("Lærer"); "leader" -> L.t("Leder")
+    null, "" -> null; else -> role
 }
 
 @Composable
@@ -237,15 +242,17 @@ fun MyProfileScreen() {
         }
         list.forEachIndexed { i, p ->
             item(key = "p${p.id}") {
-                MenuGroup(p.institutionName ?: L.t("Kontaktoplysninger")) {
+                MenuGroup(if (p.isChild) p.name else p.institutionName ?: L.t("Kontaktoplysninger")) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         fun upd(f: (MyProfile) -> MyProfile) { profiles = list.toMutableList().also { it[i] = f(p) } }
                         val phone = KeyboardOptions(keyboardType = KeyboardType.Phone)
-                        OutlinedTextField(p.mobilePhone, { v -> upd { it.copy(mobilePhone = v) } }, Modifier.fillMaxWidth(), label = { Text(L.t("Mobil")) }, singleLine = true, keyboardOptions = phone)
-                        OutlinedTextField(p.homePhone, { v -> upd { it.copy(homePhone = v) } }, Modifier.fillMaxWidth(), label = { Text(L.t("Hjemme")) }, singleLine = true, keyboardOptions = phone)
-                        OutlinedTextField(p.workPhone, { v -> upd { it.copy(workPhone = v) } }, Modifier.fillMaxWidth(), label = { Text(L.t("Arbejde")) }, singleLine = true, keyboardOptions = phone)
-                        OutlinedTextField(p.email, { v -> upd { it.copy(email = v) } }, Modifier.fillMaxWidth(), label = { Text(L.t("E-mail")) }, singleLine = true,
+                        val on = p.canEditContact
+                        OutlinedTextField(p.mobilePhone, { v -> upd { it.copy(mobilePhone = v) } }, Modifier.fillMaxWidth(), enabled = on, label = { Text(L.t("Mobil")) }, singleLine = true, keyboardOptions = phone)
+                        OutlinedTextField(p.homePhone, { v -> upd { it.copy(homePhone = v) } }, Modifier.fillMaxWidth(), enabled = on, label = { Text(L.t("Hjemme")) }, singleLine = true, keyboardOptions = phone)
+                        if (!p.isChild) OutlinedTextField(p.workPhone, { v -> upd { it.copy(workPhone = v) } }, Modifier.fillMaxWidth(), enabled = on, label = { Text(L.t("Arbejde")) }, singleLine = true, keyboardOptions = phone)
+                        OutlinedTextField(p.email, { v -> upd { it.copy(email = v) } }, Modifier.fillMaxWidth(), enabled = on, label = { Text(L.t("E-mail")) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+                        p.address?.let { Text(L.t("Adresse") + ": " + it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
             }

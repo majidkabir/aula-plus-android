@@ -112,6 +112,10 @@ fun MainNav(startRoute: String = AppState.tab.route) {
             composable("folders") { FoldersScreen() }
             composable("tasks") { ParentTasksScreen() }
             composable("profile") { MyProfileScreen() }
+            composable("groups") { GroupsScreen() }
+            composable("group/{key}") { GroupScreen(it.arguments?.getString("key") ?: "") }
+            composable("search") { GlobalSearchScreen() }
+            composable("consents") { ConsentsScreen() }
             composable("presence") { PresenceHubScreen() }
             composable("birthdays") { BirthdaysScreen() }
             composable("contact/{key}") { ContactDetailScreen(it.arguments?.getString("key") ?: "") }
