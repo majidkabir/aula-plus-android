@@ -451,6 +451,8 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
         // A new-photo notice means the cached list may be missing it.
         val at = media.savedAt
         if (Repo.newCount(albumId.takeIf { childId == null }, childId) > 0 && at != null && System.currentTimeMillis() - at > 30_000) media.refresh()
+        // Saved by an older version without photo dates: fetch again so the days show.
+        else if (media.value.orEmpty().any { it.dateMs == null }) media.refresh()
         val all = media.value.orEmpty()
         newIds = newIds + (Repo.newMediaIds intersect all.map { it.id }.toSet())
         Repo.markSeen(albumId.takeIf { childId == null }, childId, all)
@@ -462,7 +464,7 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
         else Repo.albums.value?.firstOrNull { it.id == albumId }?.title ?: L.t("Galleri")
     // In a child's own album: the tagged photos plus those found by face on the phone.
     val all = (media.value ?: emptyList()).let { list ->
-        if (childId == null) list else list + FaceIndex.found(childId).filter { f -> list.none { it.id == f.id } }
+        if (childId == null) list else list + FaceIndex.found(childId).filter { f -> list.none { it.id == f.id } }.map(Repo::freshest)
     }
     // Grouped by day, newest first, like the Photos app.
     val days = PhotoDay.group(when (val f = filter) {
