@@ -93,9 +93,10 @@ fun CalendarScreen() {
     var day by remember { mutableStateOf(AulaDate.today()) }
     val week = Repo.events(day)
     LaunchedEffect(AulaDate.weekKey(day)) { week.load(600) }
+    LaunchedEffect(Unit) { Repo.birthdays.load(6 * 3600) }
     val selected = AppState.selectedChildId
     fun matches(e: Event) = selected == null || e.childIds.isEmpty() || selected in e.childIds
-    val all = (week.value ?: emptyList()).filter(::matches)
+    val all = ((week.value ?: emptyList()) + Repo.birthdayEvents(day)).filter(::matches)
     val dayEvents = all.filter { it.occursOn(day) }.sortedWith(compareByDescending<Event> { it.allDay }.thenBy { it.startMs })
     val isToday = day == AulaDate.today()
     val now = System.currentTimeMillis()

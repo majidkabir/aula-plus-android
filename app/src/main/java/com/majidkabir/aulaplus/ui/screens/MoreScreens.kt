@@ -2,6 +2,9 @@
 
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Checklist
 import com.majidkabir.aulaplus.ui.components.MediaThumb
 import com.majidkabir.aulaplus.data.PostFilter
@@ -184,12 +187,14 @@ fun MoreScreen() {
                 MenuRow(L.t("Opslag"), { IconTile(Icons.Filled.Newspaper, Purple) }) { nav.open("posts") }
                 MenuRow(L.t("Galleri"), { IconTile(Icons.Filled.PhotoLibrary, Color(0xFFFF2D55)) }, Repo.newGalleryCount) { nav.open("gallery") }
                 MenuRow(L.t("Vigtige datoer"), { IconTile(Icons.Filled.Star, Color(0xFFFFCC00)) }) { nav.open("dates") }
+                MenuRow(L.t("Fødselsdage"), { IconTile(Icons.Filled.Cake, Color(0xFFFF2D55)) }) { nav.open("birthdays") }
                 MenuRow(L.t("Dokumenter"), { IconTile(Icons.Filled.Description, Color(0xFF007AFF)) }) { nav.open("documents") }
                 MenuRow(L.t("Kontakter"), { IconTile(Icons.Filled.People, Color(0xFF34C759)) }) { nav.open("contacts") }
             }
         }
         item {
             MenuGroup(L.t("Komme/gå")) {
+                MenuRow(L.t("Tider, hentning og åbningstider"), { IconTile(Icons.Filled.Schedule, Color(0xFF30B0C7)) }) { nav.open("presence") }
                 AppState.children.forEach { c -> MenuRow(c.firstName, { ChildAvatar(c, 30.dp) }) { nav.open("child/${c.id}") } }
                 MenuRow(L.t("Ferieanmodninger"), { IconTile(Icons.Filled.WbSunny, Color(0xFFFF9500)) }, missing) { nav.open("vacations") }
             }
@@ -208,7 +213,8 @@ fun MoreScreen() {
         item {
             MenuGroup(null) {
                 MenuRow(L.t("Notifikationer"), { IconTile(Icons.Filled.Notifications, Color(0xFFFF3B30)) }) { nav.open("notifications") }
-                MenuRow(L.t("Profil og indstillinger"), { IconTile(Icons.Filled.Settings, Color(0xFF8E8E93)) }) { nav.open("settings") }
+                MenuRow(L.t("Min profil"), { IconTile(Icons.Filled.AccountCircle, Color(0xFFAF52DE)) }) { nav.open("profile") }
+                MenuRow(L.t("Indstillinger"), { IconTile(Icons.Filled.Settings, Color(0xFF8E8E93)) }) { nav.open("settings") }
             }
         }
     }
@@ -784,7 +790,7 @@ fun ContactsScreen() {
         else item {
             Column(Modifier.card(4.dp)) {
                 shown.forEachIndexed { i, c ->
-                    Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth().clickable { nav.open("contact/" + NavCache.put("contact-${c.id}", c)) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (c.pictureUrl != null) AsyncImage(c.pictureUrl, null, Modifier.size(40.dp).clip(CircleShape), contentScale = ContentScale.Crop)
                         else InitialsAvatar(c.name, Color.Gray, 40.dp)
                         Column(Modifier.weight(1f)) {
@@ -929,6 +935,7 @@ fun SettingsScreen() {
         item { MenuGroup(L.t("Tema")) { ThemePicker() } }
         item {
             MenuGroup(L.t("Aula")) {
+                MenuRow(L.t("Rediger profil, billede og telefon"), { IconTile(Icons.Filled.AccountCircle, Color(0xFFAF52DE)) }) { nav.open("profile") }
                 MenuRow(L.t("Aula-notifikationer"), { IconTile(Icons.Filled.Notifications, Color(0xFFFF9500)) }) { nav.open("aula-notifications") }
                 MenuRow(L.t("Kalender på telefonen"), { IconTile(Icons.Filled.CalendarMonth, Color(0xFF007AFF)) }) { nav.open("calendar-feed") }
             }

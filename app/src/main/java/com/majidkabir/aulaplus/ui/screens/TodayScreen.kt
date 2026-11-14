@@ -197,9 +197,13 @@ fun TodayScreen() {
             item { Column(Modifier.card(), verticalArrangement = Arrangement.spacedBy(12.dp)) { soon.forEach { ImportantDateRow(it) } } }
         }
         val today = java.time.LocalDate.now()
-        val birthdays = (Repo.birthdays.value ?: emptyList()).filter { java.time.LocalDate.parse(it.date) < today.plusDays(7) }.take(6)
+        val birthdays = (Repo.birthdays.value ?: emptyList()).filter { java.time.LocalDate.parse(it.date) < today.plusDays(30) }.take(4)
         if (birthdays.isNotEmpty()) {
-            item { SectionTitle(L.t("Fødselsdage"), Icons.Filled.Cake, tint = Color(0xFFFF2D55)) }
+            item {
+                SectionTitle(L.t("Fødselsdage"), Icons.Filled.Cake, tint = Color(0xFFFF2D55)) {
+                    TextButton(onClick = { nav.open("birthdays") }) { Text(L.t("Vis alle")) }
+                }
+            }
             item {
                 Column(Modifier.card(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val mine = AppState.children.map { it.id }.toSet()
@@ -451,7 +455,7 @@ fun ImportantDateRow(d: com.majidkabir.aulaplus.data.ImportantDate) {
 }
 
 @Composable
-private fun BirthdayRow(b: com.majidkabir.aulaplus.data.Birthday, mine: Boolean) {
+fun BirthdayRow(b: com.majidkabir.aulaplus.data.Birthday, mine: Boolean) {
     val date = java.time.LocalDate.parse(b.date)
     val isToday = date == java.time.LocalDate.now()
     Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically,

@@ -24,8 +24,22 @@ object Repo {
         AulaApi.bootstrap(); AulaApi.importantDates()
     }
     val birthdays = Loadable("birthdays", ListSerializer(Birthday.serializer())) {
-        AulaApi.birthdays(AulaApi.bootstrap().children.mapNotNull { it.institutionCode }.distinct().sorted())
+        // A whole year, so the calendar can show them in any week.
+        AulaApi.birthdays(AulaApi.bootstrap().children.mapNotNull { it.institutionCode }.distinct().sorted(), 366)
     }
+    /** Birthdays as all-day events in the week of [day] (the list runs one year ahead; other years reuse the day). */
+    fun birthdayEvents(day: LocalDate): List<Event> {
+        val start = AulaDate.weekStart(day)
+        val days = (0L until 7L).map { start.plusDays(it) }
+        return birthdays.value.orEmpty().mapNotNull { b ->
+            val bd = runCatching { LocalDate.parse(b.date) }.getOrNull() ?: return@mapNotNull null
+            val d = days.firstOrNull { it.monthValue == bd.monthValue && it.dayOfMonth == bd.dayOfMonth } ?: return@mapNotNull null
+            val ms = d.atStartOfDay(AulaDate.copenhagen).toInstant().toEpochMilli()
+            Event("bday-${b.id}-${d.year}", L.t("🎂 %s har fødselsdag", b.name), ms, ms + 86_400_000L, allDay = true,
+                location = b.group, type = "birthday")
+        }
+    }
+
     private val filteredPosts = mutableMapOf<PostFilter, Loadable<List<Post>>>()
     fun posts(filter: PostFilter): Loadable<List<Post>> = if (filter == PostFilter.ALL) posts else
         filteredPosts.getOrPut(filter) {
