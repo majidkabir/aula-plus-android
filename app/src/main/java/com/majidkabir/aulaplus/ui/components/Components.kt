@@ -75,6 +75,12 @@ import com.majidkabir.aulaplus.ui.theme.Palette
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
+/** An Aula photo request cached under [key] (the photo id), not its expiring signed URL. */
+fun aulaImage(ctx: android.content.Context, key: String, url: String?, onError: (() -> Unit)? = null): coil.request.ImageRequest =
+    coil.request.ImageRequest.Builder(ctx).data(url).memoryCacheKey(key).diskCacheKey(key)
+        .apply { if (onError != null) listener(onError = { _, _ -> onError() }) }
+        .build()
+
 object Dims {
     val cardRadius = 24.dp
     val rowRadius = 16.dp

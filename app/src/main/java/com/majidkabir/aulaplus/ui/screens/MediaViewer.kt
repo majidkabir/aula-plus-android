@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import com.majidkabir.aulaplus.data.Child
 import com.majidkabir.aulaplus.ui.components.childColor
+import com.majidkabir.aulaplus.ui.components.aulaImage
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -89,9 +90,15 @@ fun MediaViewer(initialItems: List<Media>, start: Int, children: List<Child> = e
                 Box(Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null,
                     onClickLabel = L.t("Vis eller skjul tags")) { showInfo = !showInfo }, contentAlignment = Alignment.Center) {
                     SubcomposeAsyncImage(
-                        model = if (m.isVideo) m.thumbUrl else (m.fullUrl ?: m.thumbUrl), contentDescription = null,
-                        contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize(),
-                        loading = { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color.White) } },
+                        model = if (m.isVideo) aulaImage(ctx, "t${m.id}", m.thumbUrl) else aulaImage(ctx, "f${m.id}", m.fullUrl ?: m.thumbUrl),
+                        contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize(),
+                        // The cached thumbnail shows at once while the full photo loads.
+                        loading = {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                coil.compose.AsyncImage(aulaImage(ctx, "t${m.id}", m.thumbUrl), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                                CircularProgressIndicator(color = Color.White)
+                            }
+                        },
                     )
                     if (m.isVideo && m.fullUrl != null) IconButton(onClick = { ctx.openSafely(Intent(Intent.ACTION_VIEW, Uri.parse(m.fullUrl))) },
                         modifier = Modifier.size(88.dp)) {
