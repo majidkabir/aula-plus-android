@@ -73,9 +73,11 @@ object WidgetWriter {
         val lines = AppState.children.map { c ->
             val p = Repo.presence.value?.firstOrNull { it.childId == c.id }
             val next = today.firstOrNull { !it.allDay && it.endMs > now && AulaDate.isToday(it.startMs) && (it.childIds.isEmpty() || c.id in it.childIds) }
-            val detail = if (p?.plannedExit != null && p.checkOut == null) L.t("Hentes %s", p.plannedExit)
+            val off = p?.isDayOff == true
+            val detail = if (off) L.t(if (AulaDate.today().dayOfWeek.value >= 6) "Weekend" else "Fri i dag")
+                else if (p?.plannedExit != null && p.checkOut == null && p.plannedExit != "23:59") L.t("Hentes %s", p.plannedExit)
                 else next?.let { "${it.title} ${AulaDate.time(it.startMs)}" }
-            WidgetSnapshot.Line(c.firstName, p?.presenceStatus?.label, detail, (Palette.forChild(c.id, ids).value shr 32).toLong())
+            WidgetSnapshot.Line(c.firstName, if (off) null else p?.presenceStatus?.label, detail, (Palette.forChild(c.id, ids).value shr 32).toLong())
         }
         val threads = Repo.threads.value ?: emptyList()
         val latest = threads.firstOrNull { !it.isRead }

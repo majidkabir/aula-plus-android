@@ -78,6 +78,17 @@ data class Presence(
     val location: String? = null,
 ) {
     val presenceStatus: PresenceStatus? get() = PresenceStatus.of(status)
+
+    /** Not coming today: no drop-off or pick-up planned and not checked in. */
+    val isDayOff: Boolean
+        get() = checkIn == null && checkOut == null && isPlaceholder(plannedEntry, plannedExit) &&
+            presenceStatus.let { it == null || it == PresenceStatus.NOT_ARRIVED || it == PresenceStatus.NOT_PRESENT }
+
+    companion object {
+        /** Aula's "no plan" times: the institution's whole opening window. */
+        fun isPlaceholder(entry: String?, exit: String?) =
+            (entry == null || entry == "05:00" || entry == "00:00") && (exit == null || exit == "23:59")
+    }
 }
 
 @Serializable
