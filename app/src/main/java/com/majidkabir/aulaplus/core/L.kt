@@ -320,6 +320,7 @@ object L {
         "Ingen ugeplan i Aula" to "No week plan in Aula",
         "Værktøjer i Aula" to "Tools in Aula",
         "Se dem i galleriet" to "See them in the gallery",
+        "Alle billeder af %s" to "All photos of %s",
         "Abrikos" to "Apricot",
         "Billeder" to "Photos",
         "Dine børns institution deler ingen ugeplan i Aula. Det er normalt for vuggestuer og børnehaver." to "Your children's institution doesn't share a week plan in Aula. That's normal for nurseries and kindergartens.",

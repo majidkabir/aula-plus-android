@@ -27,6 +27,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -657,9 +658,13 @@ object AulaApi {
         val found = java.util.concurrent.ConcurrentHashMap<Int, List<Media>>()
         val lock = Mutex()
         fun merged() = albums.indices.flatMap { found[it].orEmpty() }.distinctBy { it.id }
+        // At most 3 albums at a time, so an album the user opens isn't stuck behind the scan.
+        val gate = kotlinx.coroutines.sync.Semaphore(3)
         albums.mapIndexed { i, a ->
             async {
-                found[i] = runCatching { media(a.id, profileIds) }.getOrDefault(emptyList()).filter { it.isTagged(childId) }
+                gate.withPermit {
+                    found[i] = runCatching { media(a.id, profileIds) }.getOrDefault(emptyList()).filter { it.isTagged(childId) }
+                }
                 lock.withLock { progress?.invoke(merged(), null) }
             }
         }.awaitAll()
@@ -676,7 +681,7 @@ object AulaApi {
                 MediaTag(id, name)
             }.distinctBy { it.id }
             Media(m.int("id") ?: return@mapNotNull null,
-                m.firstStr("mediumThumbnailUrl", "thumbnailUrl", "smallThumbnailUrl", "largeThumbnailUrl") ?: m.obj("file").str("url"),
+                m.firstStr("smallThumbnailUrl", "thumbnailUrl", "mediumThumbnailUrl", "largeThumbnailUrl") ?: m.obj("file").str("url"),
                 m.obj("file").str("url") ?: m.str("largeThumbnailUrl"),
                 (m.str("mediaType") ?: "").contains("video", true),
                 m.str("title")?.takeIf { it.isNotBlank() }, tags, m.str("description"), m.bool("currentUserCanEditTags") ?: false)
@@ -733,8 +738,12 @@ object AulaApi {
     }
 
     /** Marks notifications as seen (Aula deletes them, like the web app does). */
-    suspend fun deleteNotifications(list: List<AulaNotification>) {
-        val items = list.mapNotNull { n -> n.notificationId?.let { id -> n.institutionProfileId?.let { id to it } } }
+    suspend fun deleteNotifications(list: List<AulaNotification>, fallbackOwners: List<Int> = emptyList()) {
+        // A notification without an owner profile is sent once per guardian profile.
+        val items = list.flatMap { n ->
+            val id = n.notificationId ?: n.id
+            (n.institutionProfileId?.let { listOf(it) } ?: fallbackOwners).map { id to it }
+        }
         if (items.isEmpty()) return
         call("Notifications.deleteNotifications", body = buildJsonObject {
             put("notifications", buildJsonArray {
