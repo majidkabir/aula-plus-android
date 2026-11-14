@@ -916,6 +916,12 @@ fun SettingsScreen() {
         }
         item { MenuGroup(L.t("Tema")) { ThemePicker() } }
         item {
+            MenuGroup(L.t("Aula")) {
+                MenuRow(L.t("Aula-notifikationer"), { IconTile(Icons.Filled.Notifications, Color(0xFFFF9500)) }) { nav.open("aula-notifications") }
+                MenuRow(L.t("Kalender på telefonen"), { IconTile(Icons.Filled.CalendarMonth, Color(0xFF007AFF)) }) { nav.open("calendar-feed") }
+            }
+        }
+        item {
             MenuGroup(null) {
                 ToggleRow(L.t("Find mine børn på billeder"), Icons.Filled.Face, Color(0xFFAF52DE), FaceIndex.isEnabled) { FaceIndex.switchOn(it) }
                 TextButton(onClick = {

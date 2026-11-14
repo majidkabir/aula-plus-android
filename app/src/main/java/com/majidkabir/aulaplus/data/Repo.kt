@@ -3,6 +3,7 @@ package com.majidkabir.aulaplus.data
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import com.majidkabir.aulaplus.core.AulaDate
+import com.majidkabir.aulaplus.core.L
 import com.majidkabir.aulaplus.widget.WidgetWriter
 import kotlinx.serialization.builtins.ListSerializer
 import java.time.LocalDate
@@ -181,14 +182,70 @@ object Repo {
         }
     }
 
-    fun markRead(threadId: String) = threads.mutate { list -> list.map { if (it.id == threadId) it.copy(isRead = true) else it } }
-    fun setMarked(threadId: String, marked: Boolean) =
-        threads.mutate { list -> list.map { if (it.id == threadId) it.copy(isMarked = marked) else it } }
-    fun removeThread(threadId: String) = threads.mutate { list -> list.filterNot { it.id == threadId } }
+    fun markRead(threadId: String) = updateThread(threadId) { it.copy(isRead = true) }
+    fun setMarked(threadId: String, marked: Boolean) = updateThread(threadId) { it.copy(isMarked = marked) }
+    fun removeThread(threadId: String) = allThreadLists.forEach { l -> l.mutate { list -> list.filterNot { it.id == threadId } } }
+
+    // region Messages: folders, mute, drafts
+
+    val folders = Loadable("mail-folders", ListSerializer(MailFolder.serializer())) { AulaApi.bootstrap(); AulaApi.folders() }
+    private val folderThreads = mutableMapOf<Int, Loadable<List<ThreadSummary>>>()
+
+    /** Threads in one folder; null = the inbox. */
+    fun threads(folderId: Int?): Loadable<List<ThreadSummary>> = if (folderId == null) threads else
+        folderThreads.getOrPut(folderId) {
+            Loadable("threads-folder-$folderId", ListSerializer(ThreadSummary.serializer())) { AulaApi.threads(0, folderId).first }
+        }
+
+    private val allThreadLists get() = listOf(threads) + folderThreads.values
+
+    fun updateThread(id: String, change: (ThreadSummary) -> ThreadSummary) =
+        allThreadLists.forEach { l -> l.mutate { list -> list.map { if (it.id == id) change(it) else it } } }
+
+    suspend fun setMuted(t: ThreadSummary, muted: Boolean) {
+        val sub = t.subscriptionId ?: error(L.t("Kan ikke ændres for denne tråd"))
+        if (!Demo.isOn) AulaApi.setMuted(sub, muted)
+        updateThread(t.id) { it.copy(isMuted = muted) }
+    }
+
+    /** Moves a thread to a folder (null = inbox) and refreshes the target list. */
+    suspend fun move(t: ThreadSummary, folderId: Int?) {
+        if (!Demo.isOn) AulaApi.moveThread(t.id, folderId)
+        removeThread(t.id)
+        threads(folderId).refresh()
+    }
+
+    suspend fun leave(t: ThreadSummary) {
+        if (!Demo.isOn) AulaApi.leaveThread(t.id)
+        removeThread(t.id)
+    }
+
+    /** Unsent messages, kept on this phone only. */
+    var drafts by androidx.compose.runtime.mutableStateOf(loadDrafts())
+        private set
+
+    private fun loadDrafts(): List<MessageDraft> = if (!com.majidkabir.aulaplus.AulaApp.isReady) emptyList() else
+        runCatching {
+            com.majidkabir.aulaplus.core.AppJson.decodeFromString(ListSerializer(MessageDraft.serializer()),
+                com.majidkabir.aulaplus.AulaApp.prefs.getString("messageDrafts", "[]")!!)
+        }.getOrDefault(emptyList())
+
+    private fun storeDrafts() {
+        if (com.majidkabir.aulaplus.AulaApp.isReady) com.majidkabir.aulaplus.AulaApp.prefs.edit()
+            .putString("messageDrafts", com.majidkabir.aulaplus.core.AppJson.encodeToString(ListSerializer(MessageDraft.serializer()), drafts))
+            .apply()
+    }
+
+    fun saveDraft(d: MessageDraft) { drafts = listOf(d) + drafts.filterNot { it.id == d.id }; storeDrafts() }
+    fun deleteDraft(id: String) { drafts = drafts.filterNot { it.id == id }; storeDrafts() }
+
+    // endregion
 
     fun reset() {
         listOf(session, presence, threads, posts, notifications, importantDates, birthdays, albums, vacationRequests).forEach { it.forget() }
         filteredPosts.values.forEach { it.forget() }
+        folders.forget(); folderThreads.values.forEach { it.forget() }
+        drafts = emptyList(); storeDrafts()
         weeks.clear(); threadPages.clear(); plans.clear(); tasks.clear(); albumMedia.clear(); dayPlans.clear()
     }
 }

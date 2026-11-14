@@ -120,6 +120,8 @@ object Demo {
         key == "important-dates" -> importantDates
         key == "albums" -> albums
         key == "vacation-requests" -> vacationRequests
+        key == "mail-folders" -> listOf(MailFolder(1, "Slettet post", "deleted"), MailFolder(2, "Fodbold", "normal"))
+        key.startsWith("threads-folder-") -> emptyList<ThreadSummary>()
         key == "birthdays" -> listOf(
             Birthday(9001, "Liva Holm", java.time.LocalDate.now().plusDays(2).toString(), "Solsikken", "101002"),
             Birthday(noah.id, noah.name, java.time.LocalDate.now().plusDays(5).toString(), "Solsikken", "101002"),

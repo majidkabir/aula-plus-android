@@ -111,7 +111,50 @@ data class ThreadSummary(
     val isSensitive: Boolean = false,
     val regarding: List<String> = emptyList(),
     val isMarked: Boolean = false,
+    val isMuted: Boolean = false,
+    /** Aula's per-user subscription to the thread (needed to mute it). */
+    val subscriptionId: Int? = null,
+    val folderId: Int? = null,
 )
+
+/** A message folder on Aula ("Slettet post" or one the user made). The inbox has no folder. */
+@Serializable
+data class MailFolder(val id: Int, val name: String, val type: String? = null) {
+    val isDeleted get() = type.equals("deleted", true)
+}
+
+/** A message written in the app but not sent yet (kept on this phone only, like aula.dk's drafts). */
+@Serializable
+data class MessageDraft(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val recipients: List<Recipient> = emptyList(),
+    val subject: String = "",
+    val text: String = "",
+    val sensitive: Boolean = false,
+    val savedMs: Long = System.currentTimeMillis(),
+)
+
+/** Aula's out-of-office reply for messages. */
+data class AutoReply(val id: Int?, val text: String, val startMs: Long?, val endMs: Long?)
+
+/** Aula's own notification settings (push from the Aula app and e-mail), as on aula.dk. */
+data class AulaNotificationSettings(
+    val instant: Boolean,
+    val scheduledTime: String?,          // "HHmm"
+    val days: List<Boolean>,             // Monday…Sunday
+    val push: Boolean, val pushAvailable: Boolean,
+    val email: Boolean, val emailAvailable: Boolean,
+    val fromEmployees: Boolean, val fromGuardians: Boolean, val fromChildren: Boolean,
+    val calendar: Boolean, val gallery: Boolean, val posts: Boolean,
+    val substitute: Boolean, val lessonNote: Boolean,
+    val comeGo: List<NamedSwitch>,
+    val widgets: List<NamedSwitch>,
+)
+
+data class NamedSwitch(val id: String, val title: String, val on: Boolean)
+
+/** An iCal link Aula keeps up to date, for the phone's own calendar. */
+data class CalendarFeed(val id: Int, val oneWeek: String?, val oneYear: String?)
 
 @Serializable
 data class Message(
