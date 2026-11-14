@@ -574,12 +574,36 @@ object AulaApi {
         val id = p.int("id") ?: return null
         return Post(id, p.str("title") ?: L.t("Opslag"), p.html("content"), AulaDate.parse(p.str("publishAt") ?: p.str("timestamp")),
             p.obj("ownerProfile").personName() ?: "", p.bool("isImportant") ?: false, p.objs("attachments").map(::attachment),
-            (p.bool("allowComments") ?: false) && (p.bool("canCurrentUserComment") ?: true))
+            (p.bool("allowComments") ?: false) && (p.bool("canCurrentUserComment") ?: true), p.bool("isBookmarked") ?: false)
     }
 
-    suspend fun posts(profileIds: List<Int>): List<Post> =
-        call("posts.getAllPosts", listOf("parent" to "profile", "index" to "0", "limit" to "20") + ids(profileIds, "institutionProfileIds[]"))
+    suspend fun posts(profileIds: List<Int>, filter: PostFilter = PostFilter.ALL): List<Post> =
+        call("posts.getAllPosts", listOf("parent" to "profile", "index" to "0", "limit" to "20") + filter.query +
+            ids(profileIds, "institutionProfileIds[]"))
             .asObj().objs("posts").mapNotNull(::post)
+
+    /** Saves ("Gem") or unsaves a post, like aula.dk. */
+    suspend fun setBookmarked(postId: Int, on: Boolean) {
+        call(if (on) "posts.bookmark" else "posts.unbookmark", body = buildJsonObject { put("postId", postId) })
+    }
+
+    /** Birthdays of children at the given institutions in the next [days] days (this year's date, ISO). */
+    suspend fun birthdays(institutionCodes: List<String>, days: Long = 14): List<Birthday> {
+        if (institutionCodes.isEmpty()) return emptyList()
+        val start = java.time.LocalDate.now()
+        val end = start.plusDays(days)
+        return call("calendar.getBirthdayEventsForInstitutions",
+            listOf("start" to "${start}T00:00:00.0000Z", "end" to "${end}T23:59:59.0000Z") + institutionCodes.map { "instCodes[]" to it })
+            .objects().mapNotNull { b ->
+                val id = b.int("institutionProfileId") ?: return@mapNotNull null
+                // Aula returns the birth date (midnight UTC); show the coming birthday.
+                val born = b.str("birthday")?.take(10)?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: return@mapNotNull null
+                var next = runCatching { born.withYear(start.year) }.getOrNull() ?: return@mapNotNull null
+                if (next.isBefore(start)) next = next.plusYears(1)
+                if (next.isAfter(end)) return@mapNotNull null
+                Birthday(id, b.str("name") ?: "", next.toString(), b.str("mainGroupName")?.takeIf { it.isNotBlank() }, b.str("institutionCode"))
+            }.distinctBy { it.id }.sortedBy { it.date }
+    }
 
     suspend fun post(id: Int): Post? {
         val o = call("posts.getById", listOf("id" to "$id")).asObj() ?: return null

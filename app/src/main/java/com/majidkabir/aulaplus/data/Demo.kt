@@ -120,6 +120,13 @@ object Demo {
         key == "important-dates" -> importantDates
         key == "albums" -> albums
         key == "vacation-requests" -> vacationRequests
+        key == "birthdays" -> listOf(
+            Birthday(9001, "Liva Holm", java.time.LocalDate.now().plusDays(2).toString(), "Solsikken", "101002"),
+            Birthday(noah.id, noah.name, java.time.LocalDate.now().plusDays(5).toString(), "Solsikken", "101002"),
+        )
+        key == "posts-important" -> posts.filter { it.isImportant }
+        key == "posts-staff" || key == "posts-unread" -> posts
+        key.startsWith("posts-") -> emptyList<Post>()
         key.startsWith("events-") -> events
         key.startsWith("thread-") -> threadPage
         key.startsWith("weekplan-") -> weekPlans
