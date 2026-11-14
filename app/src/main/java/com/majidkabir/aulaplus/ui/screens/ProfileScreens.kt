@@ -190,31 +190,37 @@ fun MyProfileScreen() {
     var error by remember { mutableStateOf<String?>(null) }
     var note by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
-    var picture by remember { mutableStateOf<Bitmap?>(null) }
+    var pictures by remember { mutableStateOf<Map<Int, Bitmap>>(emptyMap()) }
+    var uploading by remember { mutableStateOf<Int?>(null) }
+    var target by remember { mutableStateOf<MyProfile?>(null) }
     LaunchedEffect(Unit) {
         if (Demo.isOn) {
             val p = MyProfile(1, 1, "Majid Ghafouri", "Valby Skole", null, "far@example.dk", "20 30 40 50", "", "", null, true)
-            profiles = listOf(p); saved = listOf(p); return@LaunchedEffect
+            val kid = MyProfile(101, 101, "Emma Ghafouri", "Valby Skole", null, "", "", "20 30 40 50", "", null, true, null, true, true)
+            profiles = listOf(p, kid); saved = listOf(p, kid); return@LaunchedEffect
         }
         runCatching { AulaApi.myProfiles(AulaApi.bootstrap().guardianProfileIds) }
             .onSuccess { profiles = it; saved = it }.onFailure { error = L.t("Kunne ikke hente din profil: %s", it.message ?: "") }
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        val first = profiles?.firstOrNull() ?: return@rememberLauncherForActivityResult
+        val who = target ?: return@rememberLauncherForActivityResult
         uri ?: return@rememberLauncherForActivityResult
+        // A child's picture is uploaded by me: my own profile at the child's institution owns the upload.
+        val mine = profiles.orEmpty().filterNot { it.isChild }
+        val owner = if (who.isChild) mine.firstOrNull { it.institutionCode == who.institutionCode } ?: mine.firstOrNull() else null
         scope.launch {
-            busy = true; error = null
+            busy = true; uploading = who.id; error = null
             runCatching {
                 val (bmp, jpeg) = withContext(Dispatchers.IO) { squareJpeg(ctx, uri) }
-                picture = bmp
-                if (!Demo.isOn) AulaApi.uploadProfilePicture(jpeg, first, true)
+                pictures = pictures + (who.id to bmp)
+                if (!Demo.isOn) AulaApi.uploadProfilePicture(jpeg, who, !who.isChild, owner)
             }.onSuccess {
                 note = L.t("Profilbillede skiftet")
                 // The new picture shows on the front page and in settings once the session is fetched again.
                 if (!Demo.isOn) { AulaApi.invalidateSession(); com.majidkabir.aulaplus.data.Repo.session.refresh() }
             }
-                .onFailure { picture = null; error = L.t("Billedet blev ikke skiftet: %s", it.message ?: "") }
-            busy = false
+                .onFailure { pictures = pictures - who.id; error = L.t("Billedet blev ikke skiftet: %s", it.message ?: "") }
+            busy = false; uploading = null
         }
     }
     AulaScreen(title = L.t("Min profil"), onBack = { nav.back() }, actions = {
@@ -234,11 +240,12 @@ fun MyProfileScreen() {
             item {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        BigAvatar(first.name, first.pictureUrl, 160.dp, picture)
-                        if (busy) CircularProgressIndicator()
+                        BigAvatar(first.name, first.pictureUrl, 160.dp, pictures[first.id])
+                        if (uploading == first.id) CircularProgressIndicator()
                     }
                     Text(first.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     if (first.canEditPicture) TextButton(enabled = !busy, onClick = {
+                        target = first
                         picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     }) { Icon(Icons.Filled.CameraAlt, null); Text(" " + L.t("Skift profilbillede")) }
                 }
@@ -246,8 +253,22 @@ fun MyProfileScreen() {
         }
         list.forEachIndexed { i, p ->
             item(key = "p${p.id}") {
-                MenuGroup(if (p.isChild) p.name else p.institutionName ?: L.t("Kontaktoplysninger")) {
+                MenuGroup(if (p.isChild) L.t("Barn") else p.institutionName ?: L.t("Kontaktoplysninger")) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (p.isChild) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                BigAvatar(p.name, p.pictureUrl, 64.dp, pictures[p.id])
+                                if (uploading == p.id) CircularProgressIndicator(Modifier.size(28.dp))
+                            }
+                            Column {
+                                Text(p.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                if (p.canEditPicture) TextButton(enabled = !busy, onClick = {
+                                    target = p
+                                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                }) { Icon(Icons.Filled.CameraAlt, null); Text(" " + L.t("Skift billede")) }
+                                else Text(L.t("Institutionen styrer billedet"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                         fun upd(f: (MyProfile) -> MyProfile) { profiles = list.toMutableList().also { it[i] = f(p) } }
                         val phone = KeyboardOptions(keyboardType = KeyboardType.Phone)
                         val on = p.canEditContact
@@ -257,6 +278,8 @@ fun MyProfileScreen() {
                         OutlinedTextField(p.email, { v -> upd { it.copy(email = v) } }, Modifier.fillMaxWidth(), enabled = on, label = { Text(L.t("E-mail")) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
                         p.address?.let { Text(L.t("Adresse") + ": " + it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        if (!p.canEditContact) Text(L.t("Institutionen tillader ikke, at du ændrer disse oplysninger i Aula."),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

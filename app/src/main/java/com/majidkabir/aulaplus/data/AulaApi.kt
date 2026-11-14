@@ -437,6 +437,18 @@ object AulaApi {
         val out = mine.mapNotNull { make(it, false) }.distinctBy { it.id }.toMutableList()
         // My children's contact details (the same page on aula.dk).
         mine.forEach { p -> p.objs("relations").filter { it.str("role") == "child" }.forEach { r -> make(r, true)?.let { c -> if (out.none { it.id == c.id }) out += c } } }
+        // aula.dk asks for each child's own record (as when you tap the child): it carries what I may edit.
+        val kids = out.filter { it.isChild }.map { it.id }
+        if (kids.isNotEmpty()) runCatching {
+            call("profiles.getProfileMasterData", kids.map { "instProfileIds[]" to "$it" }).asObj().objs("institutionProfiles").forEach { p ->
+                val c = make(p, true) ?: return@forEach
+                val i = out.indexOfFirst { it.id == c.id }.takeIf { it >= 0 } ?: return@forEach
+                val old = out[i]
+                out[i] = c.copy(profileId = c.profileId ?: old.profileId, name = c.name.ifBlank { old.name },
+                    institutionName = c.institutionName ?: old.institutionName, institutionCode = c.institutionCode ?: old.institutionCode,
+                    pictureUrl = c.pictureUrl ?: old.pictureUrl, address = c.address ?: old.address)
+            }
+        }
         return out
     }
 
@@ -463,8 +475,9 @@ object AulaApi {
     }
 
     /** Uploads a new profile picture: Aula hands out an upload form for its storage, then links the photo. */
-    suspend fun uploadProfilePicture(jpeg: ByteArray, profile: MyProfile, allProfiles: Boolean) {
-        val mediaId = uploadPhoto(jpeg, "profilbillede.jpg", profile.id, profile.institutionCode, tags = listOf(profile.id))
+    /** For a child, [owner] is my own profile at the child's institution (I upload, the picture is the child's). */
+    suspend fun uploadProfilePicture(jpeg: ByteArray, profile: MyProfile, allProfiles: Boolean, owner: MyProfile? = null) {
+        val mediaId = uploadPhoto(jpeg, "profilbillede.jpg", owner?.id ?: profile.id, profile.institutionCode ?: owner?.institutionCode, tags = listOf(profile.id))
         call("profiles.updateProfilePicture", body = buildJsonObject {
             put("institutionProfileId", profile.id); put("mediaId", mediaId); put("applyToAllInstitutionProfiles", allProfiles)
         })
