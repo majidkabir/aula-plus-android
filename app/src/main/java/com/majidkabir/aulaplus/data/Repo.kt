@@ -1,5 +1,7 @@
 package com.majidkabir.aulaplus.data
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import com.majidkabir.aulaplus.core.AulaDate
 import com.majidkabir.aulaplus.widget.WidgetWriter
 import kotlinx.serialization.builtins.ListSerializer
