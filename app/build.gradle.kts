@@ -64,6 +64,7 @@ dependencies {
     implementation(libs.glance.material3)
     implementation(libs.coil.compose)
     implementation(libs.mlkit.face)
+    implementation(libs.mlkit.prompt)
     implementation(libs.tflite)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)

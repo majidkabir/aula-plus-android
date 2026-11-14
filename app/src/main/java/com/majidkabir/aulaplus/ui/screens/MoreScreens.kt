@@ -2,6 +2,7 @@
 
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.material.icons.filled.Checklist
 import com.majidkabir.aulaplus.ui.components.MediaThumb
 import com.majidkabir.aulaplus.data.PostFilter
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -302,6 +303,7 @@ fun PostDetailScreen(id: Int) {
     }) {
         val p = post
         if (p == null) { item { Loading() }; return@AulaScreen }
+        item { SourceTasksBanner("p${p.id}") }
         item { PostCard(p, false) }
         error?.let { item { Text(it, color = Color(0xFFFF3B30)) } }
         item { SectionTitle(L.t("Kommentarer (%d)", comments.size), Icons.AutoMirrored.Filled.Chat) }
@@ -933,6 +935,12 @@ fun SettingsScreen() {
         }
         item {
             MenuGroup(null) {
+                ToggleRow(L.t("Find det, jeg skal gøre"), Icons.Filled.Checklist, Color(0xFFFF9500), com.majidkabir.aulaplus.data.ParentTaskFinder.isEnabled) {
+                    com.majidkabir.aulaplus.data.ParentTaskFinder.isEnabled = it
+                }
+                TextButton(onClick = { com.majidkabir.aulaplus.data.ParentTaskFinder.eraseAll() }, modifier = Modifier.padding(horizontal = 4.dp)) {
+                    Text(L.t("Glem fundne opgaver"), color = Color(0xFFFF3B30))
+                }
                 ToggleRow(L.t("Find mine børn på billeder"), Icons.Filled.Face, Color(0xFFAF52DE), FaceIndex.isEnabled) { FaceIndex.switchOn(it) }
                 TextButton(onClick = {
                     FaceIndex.eraseAll()

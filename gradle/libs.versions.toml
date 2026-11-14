@@ -1,5 +1,6 @@
 [versions]
 mlkitFace = "16.1.7"
+mlkitPrompt = "1.0.0-beta4"
 tflite = "2.16.1"
 agp = "8.7.3"
 kotlin = "2.1.0"
@@ -23,6 +24,7 @@ fragment = "1.8.5"
 
 [libraries]
 mlkit-face = { module = "com.google.mlkit:face-detection", version.ref = "mlkitFace" }
+mlkit-prompt = { module = "com.google.mlkit:genai-prompt", version.ref = "mlkitPrompt" }
 tflite = { module = "org.tensorflow:tensorflow-lite", version.ref = "tflite" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }

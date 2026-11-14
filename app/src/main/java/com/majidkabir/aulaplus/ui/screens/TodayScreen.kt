@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.data.ParentTaskFinder
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -114,6 +115,10 @@ fun TodayScreen() {
             ).awaitAll()
         }
     }
+    // Reads new messages and posts on the phone for things to do.
+    LaunchedEffect(Repo.threads.value, Repo.posts.value) {
+        ParentTaskFinder.update(Repo.threads.value.orEmpty(), Repo.posts.value.orEmpty(), Repo.session.value?.displayName.orEmpty())
+    }
     val todays = (week.value ?: emptyList()).filter { it.occursOn(AulaDate.today()) }
     AulaScreen(
         title = L.t("I dag"),
@@ -162,6 +167,7 @@ fun TodayScreen() {
                 ) { nav.open("child/${child.id}") }
             }
         }
+        item { ParentTasksCard() }
         val unread = (Repo.threads.value ?: emptyList()).filter { !it.isRead }.take(3)
         if (unread.isNotEmpty()) {
             item {
