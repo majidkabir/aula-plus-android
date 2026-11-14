@@ -167,6 +167,7 @@ data class Message(
     val dateMs: Long? = null,
     val html: String,
     val attachments: List<Attachment> = emptyList(),
+    val deleted: Boolean = false,
 )
 
 @Serializable
@@ -175,6 +176,8 @@ data class ThreadPage(
     val messages: List<Message>, // newest first
     val moreExist: Boolean,
     val isOwnMailbox: Boolean,
+    /** Newest real message (incl. deleted ones and auto-replies) — what aula.dk moves the read marker to. */
+    val readMarkerId: String? = null,
 )
 
 @Serializable

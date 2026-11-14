@@ -691,14 +691,17 @@ object AulaApi {
 
     suspend fun messages(threadId: String, page: Int = 0): ThreadPage {
         val d = call("messaging.getMessagesForThread", listOf("threadId" to threadId, "page" to "$page", "limit" to "20")).asObj()
-        val msgs = d.objs("messages")
-            .filter { (it.str("messageType") ?: "Message") in setOf("Message", "MessageEdited") }
-            .map { m ->
-                Message(m.str("id") ?: m.hashCode().toString(), m.obj("sender").personName() ?: "",
-                    AulaDate.parse(m.str("sendDateTime")), m.html("text"), m.objs("attachments").map(::attachment))
-            }
+        // Same types aula.dk counts as messages; system lines (recipients added etc.) are skipped.
+        val real = d.objs("messages")
+            .filter { (it.str("messageType") ?: "Message") in setOf("Message", "MessageEdited", "MessageDeleted", "AutoReply") }
+        val msgs = real.map { m ->
+            val gone = m.str("messageType") == "MessageDeleted"
+            Message(m.str("id") ?: m.hashCode().toString(), m.obj("sender").personName() ?: "",
+                AulaDate.parse(m.str("sendDateTime")), if (gone) "" else m.html("text"),
+                if (gone) emptyList() else m.objs("attachments").map(::attachment), deleted = gone)
+        }
         return ThreadPage(d.str("subject") ?: "", msgs, d.bool("moreMessagesExist") ?: false,
-            d.obj("mailBoxOwner").str("mailBoxOwnerType") == "institutionProfile")
+            d.obj("mailBoxOwner").str("mailBoxOwnerType") == "institutionProfile", real.firstOrNull()?.str("id"))
     }
 
     private fun idValue(id: String): JsonPrimitive = id.toLongOrNull()?.let { JsonPrimitive(it) } ?: JsonPrimitive(id)

@@ -204,6 +204,7 @@ object L {
         "Ingen kontakter" to "No contacts",
         "Ingen notifikationer" to "No notifications",
         "Ingen opslag" to "No posts",
+        "Beskeden er slettet" to "The message was deleted",
         "Institutionen deler ikke nogen i denne gruppe. Prøv en anden fane." to "The institution doesn't share anyone in this group. Try another tab.",
         "Ingen sikre dokumenter" to "No secure documents",
         "Ingen fælles filer" to "No shared files",

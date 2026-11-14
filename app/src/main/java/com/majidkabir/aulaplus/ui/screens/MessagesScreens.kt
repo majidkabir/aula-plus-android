@@ -335,8 +335,8 @@ fun ThreadScreen(id: String) {
         page.load(if (unread) 0 else 300)
         val p = page.value
         if (unread && p != null && p.isOwnMailbox) {
-            p.messages.firstOrNull()?.let { newest ->
-                runCatching { AulaApi.markRead(id, newest.id) }.onSuccess { Repo.markRead(id) }
+            (p.readMarkerId ?: p.messages.firstOrNull()?.id)?.let { newest ->
+                runCatching { AulaApi.markRead(id, newest) }.onSuccess { Repo.markRead(id) }
             }
         }
     }
@@ -441,7 +441,9 @@ fun MessageBubble(m: Message, mine: Boolean, showSender: Boolean) {
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (showSender && !mine) Text(m.sender.ifEmpty { L.t("Ukendt") }, style = MaterialTheme.typography.titleSmall)
-            HtmlText(m.html)
+            if (m.deleted) Text(L.t("Beskeden er slettet"), style = MaterialTheme.typography.bodyMedium.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else HtmlText(m.html)
             AttachmentList(m.attachments)
             m.dateMs?.let {
                 Text(AulaDate.time(it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
