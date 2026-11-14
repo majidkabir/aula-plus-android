@@ -30,6 +30,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.AutoAwesome
+import com.majidkabir.aulaplus.data.FaceFinding
+import com.majidkabir.aulaplus.data.FaceIndex
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -414,18 +418,24 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
         val all = media.value.orEmpty()
         newIds = newIds + (Repo.newMediaIds intersect all.map { it.id }.toSet())
         Repo.markSeen(albumId.takeIf { childId == null }, childId, all)
+        // Face finding keeps going in the background when the album is closed.
+        val kids = children
+        com.majidkabir.aulaplus.data.AppScope.launch { FaceFinding.learnAndScan(all, kids) }
     }
     val title = if (childId != null) L.t("Billeder af %s", children.firstOrNull { it.id == childId }?.firstName ?: "")
         else Repo.albums.value?.firstOrNull { it.id == albumId }?.title ?: L.t("Galleri")
-    val all = media.value ?: emptyList()
+    // In a child's own album: the tagged photos plus those found by face on the phone.
+    val all = (media.value ?: emptyList()).let { list ->
+        if (childId == null) list else list + FaceIndex.found(childId).filter { f -> list.none { it.id == f.id } }
+    }
     val shown = when (val f = filter) {
         PhotoFilter.All -> all
         PhotoFilter.New -> all.filter { it.id in newIds }
-        is PhotoFilter.Child -> all.filter { it.isTagged(f.id) }
+        is PhotoFilter.Child -> all.filter { FaceIndex.shows(it, f.id) }
     }
     val newCount = all.count { it.id in newIds }
     // In a child's own album every photo is that child's: no child chips there.
-    val kids = if (childId != null) emptyList() else children.mapNotNull { c -> all.count { it.isTagged(c.id) }.takeIf { it > 0 }?.let { c to it } }
+    val kids = if (childId != null) emptyList() else children.mapNotNull { c -> all.count { FaceIndex.shows(it, c.id) }.takeIf { it > 0 }?.let { c to it } }
     var viewing by remember { mutableStateOf<Int?>(null) }
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -451,6 +461,7 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
                 }
             }
         }
+        if (FaceIndex.isEnabled) item { FaceBar(childId) }
         if (all.isEmpty()) item {
             when {
                 media.isLoading || (media.value == null && media.error == null) -> Column(Modifier.fillMaxWidth().padding(top = 40.dp),
@@ -467,7 +478,7 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     row.forEach { m ->
-                        val mine = if (childId != null) emptyList() else children.filter { m.isTagged(it.id) }
+                        val mine = if (childId != null) emptyList() else children.filter { FaceIndex.shows(m, it.id) }
                         val label = listOfNotNull(if (m.isVideo) L.t("Video") else L.t("Billede"), if (m.id in newIds) L.t("Ny") else null,
                             m.tags.takeIf { it.isNotEmpty() }?.let { t -> L.t("Tagget: %s", t.joinToString(", ") { it.name }) }).joinToString(", ")
                         Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(6.dp))
@@ -480,8 +491,13 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
                                 modifier = Modifier.align(Alignment.TopStart).padding(4.dp).clip(CircleShape).background(Color(0xFFFF3B30))
                                     .padding(horizontal = 5.dp, vertical = 1.dp))
                             if (mine.isNotEmpty()) Row(Modifier.align(Alignment.BottomStart).padding(4.dp), horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
-                                mine.forEach { ChildAvatar(it, 20.dp) }
-                            }
+                                mine.forEach { c ->
+                                    Box {
+                                        ChildAvatar(c, 20.dp)
+                                        if (FaceIndex.isFaceMatch(m, c.id)) FaceBadge(Modifier.align(Alignment.BottomEnd), 10.dp)
+                                    }
+                                }
+                            } else if (childId != null && FaceIndex.isFaceMatch(m, childId)) FaceBadge(Modifier.align(Alignment.BottomStart).padding(5.dp), 18.dp)
                         }
                     }
                     repeat(3 - row.size) { Box(Modifier.weight(1f)) }
@@ -490,6 +506,66 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
         }
     }
     viewing?.let { MediaViewer(shown, it, children, newIds) { viewing = null } }
+}
+
+/** Small "found by face" mark on a photo or avatar. */
+@Composable
+fun FaceBadge(modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = 12.dp) {
+    Box(modifier.size(size).clip(CircleShape).background(Color(0xFFAF52DE)).semantics { contentDescription = L.t("Fundet med ansigtsgenkendelse") },
+        contentAlignment = Alignment.Center) {
+        Icon(Icons.Filled.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(size * 0.62f))
+    }
+}
+
+/** Face finding: progress while it checks photos; in a child's album, how to find more. */
+@Composable
+private fun FaceBar(childId: Int?) {
+    val scanning = FaceIndex.scanning
+    when {
+        scanning != null -> Column(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            LinearProgressIndicator(progress = { scanning.first.toFloat() / scanning.second.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
+            Text(L.t("Leder efter dine børn på billederne … %d af %d", scanning.first, scanning.second), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        FaceIndex.learning -> Text(L.t("Lærer ansigter at kende …"), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp))
+        childId != null -> AppState.children.firstOrNull { it.id == childId }?.let { FindChildCard(it) }
+    }
+}
+
+@Composable
+private fun FindChildCard(child: com.majidkabir.aulaplus.data.Child) {
+    val purple = Color(0xFFAF52DE)
+    Row(Modifier.card(14.dp).padding(bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(purple.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.Face, null, tint = purple)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (FaceIndex.hasReferences(child.id)) {
+                Text(L.t("%d billeder fundet på telefonen", FaceIndex.found(child.id).size), style = MaterialTheme.typography.titleSmall)
+                Text(L.t("Billeder uden tag, hvor Aula+ genkender %s. Markeret med ✦.", child.firstName), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val all = FaceFinding.allAlbums
+                if (all != null) {
+                    LinearProgressIndicator(progress = { all.first.toFloat() / all.second.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
+                    Text(L.t("Album %d af %d", all.first + 1, all.second.coerceAtLeast(1)), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    androidx.compose.material3.Button(onClick = {
+                        val kids = AppState.children
+                        com.majidkabir.aulaplus.data.AppScope.launch { FaceFinding.searchAllAlbums(kids) }
+                    }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = purple)) {
+                        Text(L.t("Søg i alle albums"))
+                    }
+                }
+            } else {
+                Text(L.t("Find %s på billeder uden tag", child.firstName), style = MaterialTheme.typography.titleSmall)
+                Text(L.t("Aula+ lærer %ss ansigt fra billeder med tag. Har %s ingen, så åbn et billede og vælg \"Det er %s\" under ☺.",
+                    child.firstName, child.firstName, child.firstName), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }
 
 /** "Henter billeder … 48 af 429" with a bar; without a known total a spinner and "Opdaterer …". */
@@ -761,6 +837,20 @@ fun SettingsScreen() {
             }
         }
         item { MenuGroup(L.t("Tema")) { ThemePicker() } }
+        item {
+            MenuGroup(null) {
+                ToggleRow(L.t("Find mine børn på billeder"), Icons.Filled.Face, Color(0xFFAF52DE), FaceIndex.isEnabled) { FaceIndex.setEnabled(it) }
+                TextButton(onClick = {
+                    FaceIndex.eraseAll()
+                    Toast.makeText(ctx, L.t("Slet ansigtsdata"), Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.padding(horizontal = 4.dp)) {
+                    Text(L.t("Slet ansigtsdata"), color = Color(0xFFFF3B30))
+                }
+            }
+            Text(L.t("Aula+ genkender dine børns ansigter på billeder uden tag. Alt sker på telefonen: intet sendes nogen steder, og andre børns ansigter gemmes ikke."),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+        }
         item {
             MenuGroup(null) {
                 ToggleRow(L.t("Notifikationer om nye beskeder og opslag"), Icons.Filled.NotificationsActive, Color(0xFFFF3B30), notificationsOn) { on ->

@@ -688,7 +688,8 @@ object AulaApi {
                 m.firstStr("smallThumbnailUrl", "thumbnailUrl", "mediumThumbnailUrl", "largeThumbnailUrl") ?: m.obj("file").str("url"),
                 m.obj("file").str("url") ?: m.str("largeThumbnailUrl"),
                 (m.str("mediaType") ?: "").contains("video", true),
-                m.str("title")?.takeIf { it.isNotBlank() }, tags, m.str("description"), m.bool("currentUserCanEditTags") ?: false)
+                m.str("title")?.takeIf { it.isNotBlank() }, tags, m.str("description"), m.bool("currentUserCanEditTags") ?: false,
+                m.firstStr("largeThumbnailUrl", "mediumThumbnailUrl") ?: m.obj("file").str("url"))
         }.distinctBy { it.id } // Aula lists an item once per child profile
     }
 

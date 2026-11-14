@@ -37,6 +37,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    androidResources { noCompress += "tflite" }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 
@@ -62,6 +63,8 @@ dependencies {
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
     implementation(libs.coil.compose)
+    implementation(libs.mlkit.face)
+    implementation(libs.tflite)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
 }
