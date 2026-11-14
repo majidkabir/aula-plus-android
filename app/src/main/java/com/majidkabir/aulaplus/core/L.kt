@@ -336,6 +336,8 @@ object L {
         "Måske %s" to "Maybe %s",
         "Find mine børn på billeder" to "Find my children in photos",
         "Lær fra Fotos" to "Learn from Photos",
+        "Er det %s i rammen?" to "Is that %s in the frame?",
+        "Ja, det er %s" to "Yes, it's %s",
         "Lærte %ss ansigt fra %d billeder." to "Learned %s's face from %d photos.",
         "Fandt ikke %ss ansigt. Vælg flere billeder, hvor ansigtet ses tydeligt forfra." to "Couldn't find %s's face. Pick more photos where the face is clearly seen from the front.",
         "Billeder uden tag, hvor Aula+ genkender %s. Markeret med ✦. Flere rigtige med \"Lær fra Fotos\": vælg nye billeder af %s." to "Untagged photos where Aula+ recognises %s. Marked with ✦. For better results use \"Learn from Photos\": pick recent photos of %s.",
