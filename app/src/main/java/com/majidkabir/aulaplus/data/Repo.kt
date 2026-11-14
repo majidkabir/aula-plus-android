@@ -22,6 +22,22 @@ object Repo {
     val importantDates = Loadable("important-dates", ListSerializer(ImportantDate.serializer())) {
         AulaApi.bootstrap(); AulaApi.importantDates()
     }
+    val birthdays = Loadable("birthdays", ListSerializer(Birthday.serializer())) {
+        AulaApi.birthdays(AulaApi.bootstrap().children.mapNotNull { it.institutionCode }.distinct().sorted())
+    }
+    private val filteredPosts = mutableMapOf<PostFilter, Loadable<List<Post>>>()
+    fun posts(filter: PostFilter): Loadable<List<Post>> = if (filter == PostFilter.ALL) posts else
+        filteredPosts.getOrPut(filter) {
+            Loadable("posts-${filter.name.lowercase()}", ListSerializer(Post.serializer())) {
+                AulaApi.posts(AulaApi.bootstrap().institutionProfileIds, filter)
+            }
+        }
+
+    /** Saves or unsaves a post on Aula and in the cached lists. */
+    suspend fun setBookmarked(post: Post, on: Boolean) {
+        if (!Demo.isOn) AulaApi.setBookmarked(post.id, on)
+        (listOf(posts) + filteredPosts.values).forEach { l -> l.mutate { list -> list.map { if (it.id == post.id) it.copy(isBookmarked = on) else it } } }
+    }
     val albums = Loadable("albums", ListSerializer(Album.serializer())) { AulaApi.albums(AulaApi.bootstrap().institutionProfileIds) }
     val vacationRequests = Loadable("vacation-requests", ListSerializer(VacationRequest.serializer())) {
         AulaApi.vacationRequests(AulaApi.bootstrap().children.map { it.id })
@@ -171,7 +187,8 @@ object Repo {
     fun removeThread(threadId: String) = threads.mutate { list -> list.filterNot { it.id == threadId } }
 
     fun reset() {
-        listOf(session, presence, threads, posts, notifications, importantDates, albums, vacationRequests).forEach { it.forget() }
+        listOf(session, presence, threads, posts, notifications, importantDates, birthdays, albums, vacationRequests).forEach { it.forget() }
+        filteredPosts.values.forEach { it.forget() }
         weeks.clear(); threadPages.clear(); plans.clear(); tasks.clear(); albumMedia.clear(); dayPlans.clear()
     }
 }

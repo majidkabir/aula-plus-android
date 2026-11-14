@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.material.icons.filled.Cake
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -109,7 +110,7 @@ fun TodayScreen() {
             listOf(
                 async { Repo.presence.load(60) }, async { week.load(300) }, async { Repo.threads.load(60) },
                 async { Repo.posts.load(300) }, async { Repo.importantDates.load(1800) }, async { Repo.vacationRequests.load(1800) },
-                async { Repo.notifications.load(300) },
+                async { Repo.notifications.load(300) }, async { Repo.birthdays.load(6 * 3600) },
             ).awaitAll()
         }
     }
@@ -188,6 +189,17 @@ fun TodayScreen() {
         if (soon.isNotEmpty()) {
             item { SectionTitle(L.t("Kommende"), Icons.Filled.Star, tint = Color(0xFFFFCC00)) }
             item { Column(Modifier.card(), verticalArrangement = Arrangement.spacedBy(12.dp)) { soon.forEach { ImportantDateRow(it) } } }
+        }
+        val today = java.time.LocalDate.now()
+        val birthdays = (Repo.birthdays.value ?: emptyList()).filter { java.time.LocalDate.parse(it.date) < today.plusDays(7) }.take(6)
+        if (birthdays.isNotEmpty()) {
+            item { SectionTitle(L.t("Fødselsdage"), Icons.Filled.Cake, tint = Color(0xFFFF2D55)) }
+            item {
+                Column(Modifier.card(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val mine = AppState.children.map { it.id }.toSet()
+                    birthdays.forEach { b -> BirthdayRow(b, b.id in mine) }
+                }
+            }
         }
     }
 }
@@ -429,5 +441,22 @@ fun ImportantDateRow(d: com.majidkabir.aulaplus.data.ImportantDate) {
             Text(if (d.allDay) AulaDate.weekdayDayMonth(date) else "${AulaDate.weekdayDayMonth(date)} · ${AulaDate.time(d.startMs)}",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@Composable
+private fun BirthdayRow(b: com.majidkabir.aulaplus.data.Birthday, mine: Boolean) {
+    val date = java.time.LocalDate.parse(b.date)
+    val isToday = date == java.time.LocalDate.now()
+    Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("🎂", style = MaterialTheme.typography.titleMedium)
+        Column(Modifier.weight(1f)) {
+            Text(b.name, style = MaterialTheme.typography.titleSmall, fontWeight = if (mine) FontWeight.Bold else null, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
+            b.group?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        Text(if (isToday) L.t("I dag") else date.format(java.time.format.DateTimeFormatter.ofPattern("EEE d. MMM", L.locale)),
+            style = MaterialTheme.typography.labelMedium, color = if (isToday) Color(0xFFFF2D55) else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

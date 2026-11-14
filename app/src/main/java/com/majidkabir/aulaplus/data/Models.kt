@@ -162,7 +162,23 @@ data class Post(
     val isImportant: Boolean = false,
     val attachments: List<Attachment> = emptyList(),
     val canComment: Boolean = false,
+    /** Saved ("Gemt") on Aula. */
+    val isBookmarked: Boolean = false,
 )
+
+/** The overview filters on aula.dk, with the query each one sends. */
+enum class PostFilter(val label: String, val query: List<Pair<String, String>>) {
+    ALL("Alle", emptyList()),
+    UNREAD("Ulæste", listOf("isUnread" to "true")),
+    IMPORTANT("Vigtige", listOf("isImportant" to "true")),
+    STAFF("Personale", listOf("creatorPortalRole" to "employee")),
+    PARENTS("Forældre", listOf("creatorPortalRole" to "guardian")),
+    OWN("Egne opslag", listOf("ownPost" to "true")),
+    SAVED("Gemte", listOf("isBookmarked" to "true")),
+}
+
+@Serializable
+data class Birthday(val id: Int, val name: String, val date: String, val group: String? = null, val institutionCode: String? = null)
 
 @Serializable
 data class WeekPlanSection(val title: String, val html: String)

@@ -1,5 +1,8 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.data.PostFilter
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Bookmark
 import com.majidkabir.aulaplus.data.AppLock
 import androidx.compose.material3.FilterChip
 import androidx.compose.material.icons.filled.Timer
@@ -217,6 +220,7 @@ fun PostCard(p: Post, compact: Boolean, onClick: (() -> Unit)? = null) {
                 Text(p.author, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                 Text(AulaDate.listDate(p.dateMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (p.isBookmarked) Icon(Icons.Filled.Bookmark, L.t("Gemt"), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
             if (p.isImportant) Row(Modifier.background(Color(0x1FFF3B30), CircleShape).padding(horizontal = 8.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Icon(Icons.Filled.Error, null, tint = Color(0xFFFF3B30), modifier = Modifier.size(14.dp))
@@ -244,12 +248,23 @@ fun PostCard(p: Post, compact: Boolean, onClick: (() -> Unit)? = null) {
 fun PostsScreen() {
     val nav = LocalNav.current
     var search by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) { Repo.posts.load(300) }
-    val posts = (Repo.posts.value ?: emptyList()).filter { search.isBlank() || listOf(it.title, it.author, Html.plain(it.html)).any { s -> s.contains(search, true) } }
-    AulaScreen(title = L.t("Opslag"), onBack = { nav.back() }, large = true, refreshing = Repo.posts.isLoading, onRefresh = { Repo.posts.refresh() }) {
+    var filter by remember { mutableStateOf(PostFilter.ALL) }
+    val source = Repo.posts(filter)
+    LaunchedEffect(filter) { source.load(if (filter == PostFilter.ALL) 300 else 120) }
+    val posts = (source.value ?: emptyList()).filter { search.isBlank() || listOf(it.title, it.author, Html.plain(it.html)).any { s -> s.contains(search, true) } }
+    AulaScreen(title = L.t("Opslag"), onBack = { nav.back() }, large = true, refreshing = source.isLoading, onRefresh = { source.refresh() }) {
         item { SearchField(search, L.t("Søg i opslag")) { search = it } }
-        item { StaleBanner(Repo.posts.error, Repo.posts.savedAt) }
-        if (posts.isEmpty()) item { if (Repo.posts.isLoading) Loading() else EmptyState(L.t("Ingen opslag"), Icons.Filled.Newspaper) }
+        item {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PostFilter.entries.forEach { f -> FilterChip(filter == f, { filter = f }, { Text(L.t(f.label)) }) }
+            }
+        }
+        item { StaleBanner(source.error, source.savedAt) }
+        if (posts.isEmpty()) item {
+            if (source.isLoading) Loading()
+            else if (filter == PostFilter.SAVED) EmptyState(L.t("Ingen gemte opslag"), Icons.Filled.BookmarkBorder)
+            else EmptyState(L.t("Ingen opslag"), Icons.Filled.Newspaper)
+        }
         posts.forEach { p -> item(key = p.id) { PostCard(p, true) { nav.open("post/${p.id}") } } }
     }
 }
@@ -258,7 +273,7 @@ fun PostsScreen() {
 fun PostDetailScreen(id: Int) {
     val nav = LocalNav.current
     val scope = rememberCoroutineScope()
-    var post by remember { mutableStateOf(Repo.posts.value?.firstOrNull { it.id == id }) }
+    var post by remember { mutableStateOf(Repo.posts.value?.firstOrNull { it.id == id } ?: PostFilter.entries.firstNotNullOfOrNull { f -> Repo.posts(f).value?.firstOrNull { it.id == id } }) }
     var comments by remember { mutableStateOf<List<Comment>>(emptyList()) }
     var draft by remember { mutableStateOf("") }
     var posting by remember { mutableStateOf(false) }
@@ -267,7 +282,21 @@ fun PostDetailScreen(id: Int) {
         if (post == null) post = runCatching { AulaApi.post(id) }.getOrNull()
         comments = runCatching { AulaApi.comments(id) }.getOrDefault(emptyList())
     }
-    AulaScreen(title = "", onBack = { nav.back() }) {
+    AulaScreen(title = "", onBack = { nav.back() }, actions = {
+        val p = post
+        if (p != null) IconButton(onClick = {
+            val on = !p.isBookmarked
+            post = p.copy(isBookmarked = on)
+            scope.launch {
+                runCatching { Repo.setBookmarked(p, on) }.onFailure {
+                    post = p
+                    error = L.t("Kunne ikke gemme") + ": " + (it.message ?: "")
+                }
+            }
+        }, modifier = Modifier.semantics { contentDescription = if (p.isBookmarked) L.t("Fjern fra gemte") else L.t("Gem opslag") }) {
+            Icon(if (p.isBookmarked) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, null)
+        }
+    }) {
         val p = post
         if (p == null) { item { Loading() }; return@AulaScreen }
         item { PostCard(p, false) }
