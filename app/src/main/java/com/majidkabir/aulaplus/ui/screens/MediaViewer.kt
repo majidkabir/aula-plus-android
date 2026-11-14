@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.ui.components.MediaThumb
 import com.majidkabir.aulaplus.core.AulaDate
 import android.content.Intent
 import android.net.Uri
@@ -110,7 +111,7 @@ fun MediaViewer(initialItems: List<Media>, start: Int, children: List<Child> = e
                         // The cached thumbnail shows at once while the full photo loads.
                         loading = {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                coil.compose.AsyncImage(aulaImage(ctx, "t${m.id}", m.thumbUrl), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                                MediaThumb(m, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                                 CircularProgressIndicator(color = Color.White)
                             }
                         },
