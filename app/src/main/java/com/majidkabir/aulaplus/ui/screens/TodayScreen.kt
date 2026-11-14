@@ -80,6 +80,9 @@ import com.majidkabir.aulaplus.ui.components.SectionTitle
 import com.majidkabir.aulaplus.ui.components.StaleBanner
 import com.majidkabir.aulaplus.ui.components.StatusPill
 import com.majidkabir.aulaplus.ui.components.card
+import androidx.compose.ui.semantics.heading
+import androidx.compose.material.icons.filled.PhotoLibrary
+import com.majidkabir.aulaplus.ui.components.pastelCard
 import com.majidkabir.aulaplus.ui.components.childColor
 import com.majidkabir.aulaplus.ui.theme.ThemeStore
 import kotlinx.coroutines.async
@@ -106,6 +109,7 @@ fun TodayScreen() {
             listOf(
                 async { Repo.presence.load(60) }, async { week.load(300) }, async { Repo.threads.load(60) },
                 async { Repo.posts.load(300) }, async { Repo.importantDates.load(1800) }, async { Repo.vacationRequests.load(1800) },
+                async { Repo.notifications.load(300) },
             ).awaitAll()
         }
     }
@@ -130,6 +134,7 @@ fun TodayScreen() {
         item { TodayHero(todays) }
         item { ChildFilterBar() }
         item { StaleBanner(Repo.presence.error ?: Repo.session.error, Repo.presence.savedAt) }
+        item { NewPhotosCard() }
         val missing = (Repo.vacationRequests.value ?: emptyList()).filter { it.isMissingAnswer && it.isEditable }
         if (missing.isNotEmpty()) item {
             val orange = Color(0xFFFF9500)
@@ -194,11 +199,10 @@ private fun greeting(): String {
     return if (first.isEmpty()) hello else "$hello, $first"
 }
 
-/** Brand gradient header with greeting, date and three key numbers. */
+/** Header: date, a big friendly greeting, and three pastel tiles with the day's key numbers. */
 @Composable
 fun TodayHero(todays: List<Event>) {
     val nav = LocalNav.current
-    val t = ThemeStore.theme
     val ids = AppState.visibleChildren.map { it.id }.toSet()
     val pickup = (Repo.presence.value ?: emptyList()).filter { it.childId in ids && it.checkOut == null }.mapNotNull { it.plannedExit }.minOrNull()
     val now = System.currentTimeMillis()
@@ -210,52 +214,66 @@ fun TodayHero(todays: List<Event>) {
             it.title to (if (d == AulaDate.today().plusDays(1)) L.t("I morgen") else AulaDate.dayMonthShort(d))
         }
     val large = LocalDensity.current.fontScale > 1.5f
-    Box(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp))
-            .background(Brush.linearGradient(listOf(t.brandLight, t.second))),
-    ) {
-        Box(Modifier.size(190.dp).offset(x = 220.dp, y = (-70).dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)))
-        Box(Modifier.size(120.dp).offset(x = 270.dp, y = 60.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.07f)))
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Column {
-                Text(greeting(), style = MaterialTheme.typography.headlineSmall, color = Color.White)
-                Text(AulaDate.weekdayDayMonth(AulaDate.today()), style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.88f))
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column {
+            Text(AulaDate.weekdayDayMonth(AulaDate.today()).replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(greeting(), style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
+        }
+        val purple = Color(0xFFAF52DE); val teal = Color(0xFF30B0C7); val orange = Color(0xFFFF9500)
+        if (large) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Tile(Modifier.clickable { nav.tab(Tab.MESSAGES) }, Icons.AutoMirrored.Filled.Chat, "${Repo.unreadCount}", L.t("Ulæste"), purple)
+                Tile(Modifier, Icons.Filled.FamilyRestroom, pickup ?: "–", L.t("Afhentning"), teal)
+                Tile(Modifier, Icons.Filled.CalendarMonth, next?.second ?: "–", next?.first ?: L.t("Intet planlagt"), orange, wrap = true)
             }
-            val stats: @Composable (Modifier) -> Unit = { m ->
-                Stat(m.clickable { nav.tab(Tab.MESSAGES) }, Icons.AutoMirrored.Filled.Chat, "${Repo.unreadCount}", L.t("Ulæste"))
-            }
-            if (large) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    stats(Modifier)
-                    Stat(Modifier, Icons.Filled.FamilyRestroom, pickup ?: "–", L.t("Afhentning"))
-                    Stat(Modifier, Icons.Filled.CalendarMonth, next?.second ?: "–", next?.first ?: L.t("Intet planlagt"), wrap = true)
-                }
-            } else {
-                Row(verticalAlignment = Alignment.Top) {
-                    stats(Modifier.weight(1f))
-                    Divider()
-                    Stat(Modifier.weight(1f), Icons.Filled.FamilyRestroom, pickup ?: "–", L.t("Afhentning"))
-                    Divider()
-                    Stat(Modifier.weight(1.2f), Icons.Filled.CalendarMonth, next?.second ?: "–", next?.first ?: L.t("Intet planlagt"))
-                }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Tile(Modifier.weight(1f).clickable { nav.tab(Tab.MESSAGES) }, Icons.AutoMirrored.Filled.Chat, "${Repo.unreadCount}", L.t("Ulæste"), purple)
+                Tile(Modifier.weight(1f), Icons.Filled.FamilyRestroom, pickup ?: "–", L.t("Afhentning"), teal)
+                Tile(Modifier.weight(1f), Icons.Filled.CalendarMonth, next?.second ?: "–", next?.first ?: L.t("Intet planlagt"), orange)
             }
         }
     }
 }
 
 @Composable
-private fun Divider() {
-    Box(Modifier.padding(horizontal = 10.dp).width(1.dp).height(44.dp).background(Color.White.copy(alpha = 0.3f)))
+private fun Tile(modifier: Modifier, icon: ImageVector, value: String, label: String, color: Color, wrap: Boolean = false) {
+    Column(
+        modifier.clip(RoundedCornerShape(20.dp)).background(color.copy(alpha = 0.16f)).padding(12.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.size(30.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(17.dp))
+        }
+        Text(value, style = MaterialTheme.typography.titleLarge, maxLines = 1)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (wrap) 3 else 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
+/** "12 nye billeder" — opens the gallery (its own tab when there's no week plan). */
 @Composable
-private fun Stat(modifier: Modifier, icon: ImageVector, value: String, label: String, wrap: Boolean = false) {
-    Column(modifier.semantics(mergeDescendants = true) {}) {
-        Icon(icon, null, tint = Color.White.copy(alpha = 0.88f), modifier = Modifier.size(16.dp))
-        Text(value, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1)
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.9f),
-            maxLines = if (wrap) 3 else 1, overflow = TextOverflow.Ellipsis)
+fun NewPhotosCard() {
+    val nav = LocalNav.current
+    val count = Repo.newGalleryCount
+    if (count <= 0) return
+    val purple = Color(0xFFAF52DE)
+    Row(
+        Modifier.card(14.dp).clickable {
+            if (Repo.session.value?.hasWeekPlan != false) nav.open("gallery") else nav.tab(Tab.PHOTOS)
+        },
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(purple.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.PhotoLibrary, null, tint = purple, modifier = Modifier.size(24.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(L.t("%d nye billeder", count), style = MaterialTheme.typography.titleMedium)
+            Text(L.t("Se dem i galleriet"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -277,11 +295,11 @@ fun ChildDayCard(child: Child, presence: Presence?, events: List<Event>, onOpen:
     val upcoming = events.filter { it.endMs >= now }
     val large = LocalDensity.current.fontScale > 1.5f
     Box(Modifier.fillMaxWidth()) {
-        Column(Modifier.card().clickable(onClick = onOpen), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.pastelCard(color, 18.dp).clickable(onClick = onOpen), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ChildAvatar(child, 48.dp)
+                ChildAvatar(child, 56.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(child.firstName, style = MaterialTheme.typography.titleLarge)
+                    Text(child.firstName, style = MaterialTheme.typography.headlineSmall)
                     Text(child.institutionName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     presence?.presenceStatus?.let { StatusPill(it.label, it.icon(), color) }
@@ -298,7 +316,10 @@ fun ChildDayCard(child: Child, presence: Presence?, events: List<Event>, onOpen:
                                 rowFacts.forEach { f ->
                                     Row(Modifier.weight(1f).semantics(mergeDescendants = true) {},
                                         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(f.icon, null, tint = color, modifier = Modifier.size(20.dp))
+                                        Box(Modifier.size(30.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface),
+                                            contentAlignment = Alignment.Center) {
+                                            Icon(f.icon, null, tint = color, modifier = Modifier.size(18.dp))
+                                        }
                                         Column {
                                             Text(f.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             Text(f.value, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -311,7 +332,7 @@ fun ChildDayCard(child: Child, presence: Presence?, events: List<Event>, onOpen:
                     }
                 }
                 p.comment?.let {
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Dims.rowRadius)).background(MaterialTheme.colorScheme.surfaceVariant)
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Dims.rowRadius)).background(MaterialTheme.colorScheme.surface)
                         .padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Filled.TextSnippet, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                         Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -355,8 +376,6 @@ fun ChildDayCard(child: Child, presence: Presence?, events: List<Event>, onOpen:
                 }
             }
         }
-        // Colour stripe on the leading edge.
-        Box(Modifier.padding(vertical = 14.dp).width(4.dp).height(56.dp).clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)).background(color))
     }
 }
 

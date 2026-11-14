@@ -76,20 +76,33 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 object Dims {
-    val cardRadius = 20.dp
-    val rowRadius = 14.dp
+    val cardRadius = 24.dp
+    val rowRadius = 16.dp
     val pad = 16.dp
     val gap = 12.dp
 }
 
-/** Standard card surface. */
+/** Standard card surface: white, big round corners, soft warm shadow. */
 @Composable
 fun Modifier.card(padding: Dp = Dims.pad): Modifier = this
     .fillMaxWidth()
-    .shadow(3.dp, RoundedCornerShape(Dims.cardRadius), clip = false,
-        ambientColor = Color.Black.copy(alpha = 0.10f), spotColor = Color.Black.copy(alpha = 0.10f))
+    .shadow(6.dp, RoundedCornerShape(Dims.cardRadius), clip = false,
+        ambientColor = com.majidkabir.aulaplus.ui.theme.CardShadow.copy(alpha = 0.18f),
+        spotColor = com.majidkabir.aulaplus.ui.theme.CardShadow.copy(alpha = 0.18f))
     .clip(RoundedCornerShape(Dims.cardRadius))
     .background(MaterialTheme.colorScheme.surface)
+    .padding(padding)
+
+/** A card tinted with a child's (or any) colour: pastel over the card colour. */
+@Composable
+fun Modifier.pastelCard(color: Color, padding: Dp = Dims.pad): Modifier = this
+    .fillMaxWidth()
+    .shadow(6.dp, RoundedCornerShape(Dims.cardRadius), clip = false,
+        ambientColor = com.majidkabir.aulaplus.ui.theme.CardShadow.copy(alpha = 0.18f),
+        spotColor = com.majidkabir.aulaplus.ui.theme.CardShadow.copy(alpha = 0.18f))
+    .clip(RoundedCornerShape(Dims.cardRadius))
+    .background(MaterialTheme.colorScheme.surface)
+    .background(color.copy(alpha = 0.16f))
     .padding(padding)
 
 @Composable
@@ -134,17 +147,16 @@ fun StatusPill(label: String, icon: ImageVector?, color: Color) {
 }
 
 @Composable
-fun IconTile(icon: ImageVector, color: Color, size: Dp = 30.dp) {
+fun IconTile(icon: ImageVector, color: Color, size: Dp = 36.dp) {
     Box(
-        Modifier.size(size).clip(RoundedCornerShape(8.dp))
-            .background(Brush.linearGradient(listOf(color, color.copy(alpha = 0.78f)))),
+        Modifier.size(size).clip(RoundedCornerShape(size * 0.32f)).background(color.copy(alpha = 0.16f)),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(size * 0.58f)) }
+    ) { Icon(icon, null, tint = color, modifier = Modifier.size(size * 0.55f)) }
 }
 
 @Composable
 fun InitialsAvatar(name: String, color: Color = Color.Gray, size: Dp = 32.dp) {
-    val initials = name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }
+    val initials = name.split(" ").filter { it.firstOrNull()?.isLetter() == true }.take(2).joinToString("") { it.first().uppercase() }
     Box(
         Modifier.size(size).clip(CircleShape).background(Brush.linearGradient(listOf(color, color.copy(alpha = 0.75f)))),
         contentAlignment = Alignment.Center,
