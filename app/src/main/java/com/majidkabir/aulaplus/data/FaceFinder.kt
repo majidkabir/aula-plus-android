@@ -57,7 +57,12 @@ object FaceEngine {
     suspend fun faces(bitmap: Bitmap): List<Face> = lock.withLock {
         withContext(Dispatchers.Default) {
             val found = runCatching { Tasks.await(detector.process(InputImage.fromBitmap(bitmap, 0))) }.getOrDefault(emptyList())
-            found.filter { it.boundingBox.width() >= 36 }
+            // Clear, roughly frontal faces at least ~56 px wide with both eyes found: small or
+            // side-on faces give unreliable faceprints.
+            found.filter {
+                it.boundingBox.width() >= 56 && kotlin.math.abs(it.headEulerAngleY) <= 30f && kotlin.math.abs(it.headEulerAngleX) <= 25f &&
+                    it.getLandmark(FaceLandmark.LEFT_EYE) != null && it.getLandmark(FaceLandmark.RIGHT_EYE) != null
+            }
                 .sortedByDescending { it.boundingBox.width() }
                 .take(12)
                 .mapNotNull { f ->
@@ -121,8 +126,15 @@ object FaceEngine {
  * kept: only each photo's similarity to my own children is stored.
  */
 object FaceIndex {
-    /** Similarity (average of the best 3 matches against the child's reference faces) that counts as a match. */
-    const val THRESHOLD = 0.50f
+    /**
+     * Similarity (average of the best 3 matches against the child's reference faces) that counts as a match.
+     * Young children look alike to the model, so this is strict.
+     */
+    const val THRESHOLD = 0.62f
+    /** A face must be this much closer to one of my children than to the others. */
+    const val MARGIN = 0.06f
+    /** Bump to throw away results from an older, less careful version. */
+    private const val SCHEMA = 2
 
     @Serializable
     private data class Store(
@@ -133,6 +145,7 @@ object FaceIndex {
         val scoredWith: Map<Int, Int> = emptyMap(),
         val rejected: Map<Int, Set<Int>> = emptyMap(),
         val found: Map<Int, List<Media>> = emptyMap(),
+        val schema: Int = 0,
     )
 
     private val json = Json { ignoreUnknownKeys = true; allowSpecialFloatingPointValues = true }
@@ -152,8 +165,8 @@ object FaceIndex {
         AulaApp.prefs.edit().putBoolean("faceFinder", on).apply()
     }
 
-    private fun load(): Store = if (!AulaApp.isReady || Demo.isOn) Store() else
-        runCatching { json.decodeFromString<Store>(file.readText()) }.getOrDefault(Store())
+    private fun load(): Store = if (!AulaApp.isReady || Demo.isOn) Store(schema = SCHEMA) else
+        runCatching { json.decodeFromString<Store>(file.readText()) }.getOrNull()?.takeIf { it.schema == SCHEMA } ?: Store(schema = SCHEMA)
 
     private fun save() {
         if (!AulaApp.isReady || Demo.isOn) return
@@ -230,6 +243,8 @@ object FaceIndex {
         if (kids.isEmpty()) return
         val todo = media.filter { !it.isVideo && store.scoredWith[it.id] != store.version }
         if (todo.isEmpty()) return
+        // References that don't look like the rest (e.g. a teacher in a tagged photo) are left out.
+        val refs = kids.associate { it.id to cleaned(store.refs[it.id].orEmpty()) }
         scanning = 0 to todo.size
         try {
             todo.forEachIndexed { i, m ->
@@ -237,7 +252,16 @@ object FaceIndex {
                 val bmp = image(m)
                 if (bmp != null) {
                     val faces = FaceEngine.faces(bmp)
-                    val row = kids.associate { it.id to similarity(faces, store.refs[it.id].orEmpty()) }
+                    val row = mutableMapOf<Int, Float>()
+                    for (face in faces) {
+                        val sims = kids.map { it.id to similarity(face, refs[it.id].orEmpty()) }
+                        for ((id, sim) in sims) {
+                            // Closer to this child than to my other children by a clear margin.
+                            val others = sims.filter { it.first != id }.maxOfOrNull { it.second } ?: 0f
+                            val score = if (sims.size == 1 || sim - others >= MARGIN) sim else 0f
+                            row[id] = maxOf(row[id] ?: 0f, score)
+                        }
+                    }
                     var found = store.found
                     for (k in kids) if ((row[k.id] ?: 0f) >= THRESHOLD && !m.isTagged(k.id)) {
                         found = found + (k.id to (listOf(m) + found[k.id].orEmpty().filter { it.id != m.id }).take(1000))
@@ -254,17 +278,29 @@ object FaceIndex {
     }
 
     fun eraseAll() {
-        store = Store()
+        store = Store(schema = SCHEMA)
         if (AulaApp.isReady) file.delete()
     }
 
-    /** Best face in the photo against the child: mean of its 3 highest cosine similarities. */
-    private fun similarity(faces: List<FaceEngine.Face>, refs: List<FloatArray>): Float {
+    /** A face against the child: mean of its 3 highest cosine similarities to the reference faces. */
+    private fun similarity(face: FaceEngine.Face, refs: List<FloatArray>): Float {
         if (refs.isEmpty()) return 0f
-        return faces.maxOfOrNull { f ->
-            val top = refs.map { r -> var s = 0f; for (i in r.indices) s += r[i] * f.embedding[i]; s }.sortedDescending().take(3)
-            top.sum() / top.size
-        } ?: 0f
+        val top = refs.map { dot(face.embedding, it) }.sortedDescending().take(3)
+        return top.sum() / top.size
+    }
+
+    private fun dot(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indices) s += a[i] * b[i]; return s }
+
+    /**
+     * Drops reference faces that don't resemble the others (most references are right, a few come
+     * from a tagged photo where someone else's face was the one found).
+     */
+    fun cleaned(refs: List<FloatArray>): List<FloatArray> {
+        if (refs.size < 3) return refs
+        val typical = refs.indices.map { i -> refs.indices.filter { it != i }.map { dot(refs[i], refs[it]) }.sorted().let { it[it.size / 2] } }
+        val median = typical.sorted()[typical.size / 2]
+        val keep = refs.indices.filter { typical[it] >= maxOf(0.35f, median - 0.12f) }
+        return if (keep.size >= 2) keep.map { refs[it] } else refs
     }
 
     private suspend fun image(m: Media): Bitmap? = withContext(Dispatchers.IO) {
