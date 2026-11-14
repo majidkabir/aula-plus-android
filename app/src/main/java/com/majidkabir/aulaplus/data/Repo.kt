@@ -54,6 +54,9 @@ object Repo {
     private val plans = mutableMapOf<String, Loadable<List<WeekPlan>>>()
     private val tasks = mutableMapOf<String, Loadable<List<SchoolTask>>>()
     private val albumMedia = mutableMapOf<Int, Loadable<List<Media>>>()
+
+    /** The newest copy of a photo from any album loaded this session (dates and fresh links). */
+    fun freshest(m: Media): Media = albumMedia.values.firstNotNullOfOrNull { l -> l.value?.firstOrNull { it.id == m.id } } ?: m
     private val dayPlans = mutableMapOf<String, Loadable<List<DayPlan>>>()
 
     val unreadCount: Int get() = threads.value?.count { !it.isRead } ?: 0

@@ -201,6 +201,19 @@ object FaceIndex {
     /** Tagged, or found by face. */
     fun shows(m: Media, childId: Int) = m.isTagged(childId) || isFaceMatch(m, childId)
 
+    /**
+     * Photos found earlier were stored before Aula+ knew their dates (and their links expire):
+     * take the fresh copy whenever the same photo turns up in an album again.
+     */
+    fun updateFound(media: List<Media>) {
+        val fresh = media.associateBy { it.id }
+        var changed = false
+        val found = store.found.mapValues { (_, list) ->
+            list.map { m -> fresh[m.id]?.takeIf { it != m }?.also { changed = true } ?: m }
+        }
+        if (changed) { store = store.copy(found = found); save() }
+    }
+
     fun found(childId: Int): List<Media> =
         if (!isEnabled) emptyList() else store.found[childId].orEmpty().filter { isFaceMatch(it, childId) }
 
@@ -297,7 +310,9 @@ object FaceIndex {
 
     /** Checks photos not yet scored against the current reference faces, one at a time. */
     suspend fun scan(media: List<Media>, children: List<Child>) {
-        if (!isEnabled || scanning != null) return
+        if (!isEnabled) return
+        updateFound(media)
+        if (scanning != null) return
         val kids = children.filter { hasReferences(it.id) }
         if (kids.isEmpty()) return
         val todo = media.filter { !it.isVideo && store.scoredWith[it.id] != store.version }
