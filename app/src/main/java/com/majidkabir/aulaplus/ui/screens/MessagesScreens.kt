@@ -402,6 +402,7 @@ fun ThreadScreen(id: String) {
             }
         }
         if (page.value == null && page.isLoading) item { Loading() }
+        item { SourceTasksBanner("t$id") }
         messages.forEachIndexed { i, m ->
             val prev = messages.getOrNull(i - 1)
             val day = m.dateMs?.let(AulaDate::localDate)
