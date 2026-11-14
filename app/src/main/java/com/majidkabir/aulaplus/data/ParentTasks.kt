@@ -3,8 +3,6 @@ package com.majidkabir.aulaplus.data
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.google.mlkit.genai.common.FeatureStatus
-import com.google.mlkit.genai.prompt.Generation
 import com.majidkabir.aulaplus.AulaApp
 import com.majidkabir.aulaplus.core.AppJson
 import com.majidkabir.aulaplus.core.AulaDate
@@ -12,9 +10,6 @@ import com.majidkabir.aulaplus.core.Html
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import java.time.DayOfWeek
 import java.time.Instant
@@ -42,7 +37,7 @@ data class ParentTask(
 
 /**
  * Reads messages and posts on the phone and lists what the parent must do.
- * Nothing leaves the phone: Gemini Nano runs on the device (where it exists), else plain keyword rules.
+ * Nothing leaves the phone: Danish keyword rules. (Gemini Nano needs Kotlin 2.3; it can come with that upgrade.)
  */
 object ParentTaskFinder {
     @Serializable
@@ -115,13 +110,10 @@ object ParentTaskFinder {
         if (todo.isEmpty()) return
         running = AppScope.launch {
             try {
-                val nano = NanoReader.ready()
-                usesAI = nano
                 todo.forEachIndexed { i, item ->
                     progress = i to todo.size
                     val sent = item.ms?.let { Instant.ofEpochMilli(it).atZone(AulaDate.copenhagen).toLocalDate() } ?: LocalDate.now()
-                    val found = (if (nano) runCatching { NanoReader.read(item.text, sent) }.getOrNull() else null)
-                        ?: KeywordReader.read(item.text, sent)
+                    val found = KeywordReader.read(item.text, sent)
                     val made = found.take(4).map { f ->
                         ParentTask("${item.key}-${stableHash(f.title.lowercase())}", f.title, f.due?.toString(), item.key, item.title, item.ms, f.byAI)
                     }
@@ -142,35 +134,6 @@ object ParentTaskFinder {
 }
 
 data class FoundTask(val title: String, val due: LocalDate?, val byAI: Boolean)
-
-/** Gemini Nano through ML Kit's Prompt API (Pixel 9/10 and similar phones). */
-object NanoReader {
-    private val model by lazy { Generation.getClient() }
-
-    suspend fun ready(): Boolean = runCatching { model.checkStatus() == FeatureStatus.AVAILABLE }.getOrDefault(false)
-
-    suspend fun read(text: String, sent: LocalDate): List<FoundTask> {
-        val prompt = """
-            You read a message from a Danish daycare or school to parents. List only concrete things the parent has to do
-            or remember: bring or pack something, reply, sign up, pay, fill in or sign a form, pick up or drop off at a
-            special time, or a day the place is closed. Ignore greetings, news and what the children did. Never invent tasks.
-            Answer with JSON only: [{"title": "<short Danish instruction, max 8 words>", "date": "<yyyy-MM-dd or empty>"}].
-            Answer [] when there is nothing to do. The message was sent ${sent} (${sent.dayOfWeek}).
-
-            Message:
-            ${text.take(2500)}
-        """.trimIndent()
-        val answer = model.generateContent(prompt).candidates.firstOrNull()?.text ?: return emptyList()
-        val json = answer.substringAfter("[", "").substringBeforeLast("]", "")
-        val list = AppJson.parseToJsonElement("[$json]") as? JsonArray ?: return emptyList()
-        return list.mapNotNull { e ->
-            val o = e as? JsonObject ?: return@mapNotNull null
-            val title = o["title"]?.jsonPrimitive?.content?.trim().orEmpty()
-            if (title.isEmpty()) return@mapNotNull null
-            FoundTask(title, o["date"]?.jsonPrimitive?.content?.let { runCatching { LocalDate.parse(it.trim()) }.getOrNull() }, true)
-        }.distinctBy { it.title.lowercase() }
-    }
-}
 
 /** Danish keyword rules: sentences that ask the parent to do something, with the day they mention. */
 object KeywordReader {
