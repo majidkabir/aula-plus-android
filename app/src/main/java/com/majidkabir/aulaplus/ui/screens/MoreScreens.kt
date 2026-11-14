@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.majidkabir.aulaplus.ui.screens
 
 import com.majidkabir.aulaplus.data.PostFilter
@@ -461,11 +463,13 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
     val all = (media.value ?: emptyList()).let { list ->
         if (childId == null) list else list + FaceIndex.found(childId).filter { f -> list.none { it.id == f.id } }
     }
-    val shown = when (val f = filter) {
+    // Grouped by day, newest first, like the Photos app.
+    val days = PhotoDay.group(when (val f = filter) {
         PhotoFilter.All -> all
         PhotoFilter.New -> all.filter { it.id in newIds }
         is PhotoFilter.Child -> all.filter { FaceIndex.shows(it, f.id) }
-    }
+    })
+    val shown = days.flatMap { it.items }
     val newCount = all.count { it.id in newIds }
     // In a child's own album every photo is that child's: no child chips there.
     val kids = if (childId != null) emptyList() else children.mapNotNull { c -> all.count { FaceIndex.shows(it, c.id) }.takeIf { it > 0 }?.let { c to it } }
@@ -507,7 +511,9 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
             }
         }
         else if (shown.isEmpty()) item { EmptyState(L.t("Ingen billeder passer til filteret."), Icons.Filled.PhotoLibrary) }
-        shown.chunked(3).forEach { row ->
+        days.forEach { day ->
+        stickyHeader(key = "day-${day.key}") { PhotoDayHeader(day) }
+        day.items.chunked(3).forEach { row ->
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     row.forEach { m ->
@@ -536,6 +542,7 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
                     repeat(3 - row.size) { Box(Modifier.weight(1f)) }
                 }
             }
+        }
         }
     }
     viewing?.let { MediaViewer(shown, it, children, newIds) { viewing = null } }
@@ -1032,5 +1039,40 @@ fun ThemePicker() {
                     color = if (sel) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+/** Photos put on Aula the same day, for date headers like the Photos app. */
+data class PhotoDay(val key: String, val date: java.time.LocalDate?, val items: List<com.majidkabir.aulaplus.data.Media>) {
+    companion object {
+        /** Newest day first; photos without a date last. */
+        fun group(list: List<com.majidkabir.aulaplus.data.Media>): List<PhotoDay> =
+            list.groupBy { m -> m.dateMs?.let { java.time.Instant.ofEpochMilli(it).atZone(AulaDate.copenhagen).toLocalDate() } }
+                .map { (d, items) -> PhotoDay(d?.toString() ?: "none", d, items.sortedByDescending { it.dateMs ?: 0L }) }
+                .sortedByDescending { it.date ?: java.time.LocalDate.MIN }
+
+        /** "I dag", "I går", "Mandag", "tor. 5. nov." or "5. nov. 2025". */
+        fun title(d: java.time.LocalDate): String {
+            val today = java.time.LocalDate.now(AulaDate.copenhagen)
+            val days = java.time.temporal.ChronoUnit.DAYS.between(d, today)
+            val fmt = { p: String -> d.format(java.time.format.DateTimeFormatter.ofPattern(p, L.locale)) }
+            return when {
+                days == 0L -> L.t("I dag")
+                days == 1L -> L.t("I går")
+                days in 2..6 -> fmt("EEEE").replaceFirstChar { it.uppercase(L.locale) }
+                d.year == today.year -> fmt("EEE d. MMM")
+                else -> fmt("d. MMM yyyy")
+            }
+        }
+    }
+}
+
+@Composable
+fun PhotoDayHeader(day: PhotoDay) {
+    Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 4.dp, vertical = 8.dp)
+        .semantics { heading() }, verticalAlignment = Alignment.CenterVertically) {
+        Text(day.date?.let(PhotoDay::title) ?: L.t("Uden dato"), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+        Text(if (day.items.size == 1) L.t("1 billede") else L.t("%d billeder", day.items.size),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
