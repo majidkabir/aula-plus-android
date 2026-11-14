@@ -392,13 +392,29 @@ data class EventDetail(
     val deadlineExceeded: Boolean = false,
     val invitees: List<Invitee> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
+    val type: String? = null,
+    val slots: List<MeetingSlot> = emptyList(),
+)
+
+/** One bookable time in a school-home talk or parent meeting. */
+@Serializable
+data class MeetingSlot(val slotId: Int, val index: Int, val startMs: Long, val endMs: Long, val bookedFor: Int? = null, val blocked: Boolean = false)
+
+/** My guardian profile at one institution. */
+@Serializable
+data class OwnerProfile(val institutionProfileId: Int, val institutionCode: String, val institutionName: String)
+
+data class NewEvent(
+    val title: String = "", val type: String = "event", val startMs: Long, val endMs: Long, val allDay: Boolean = false,
+    val location: String = "", val description: String = "", val invitees: List<Recipient> = emptyList(),
+    val responseRequired: Boolean = true, val deadlineMs: Long? = null, val isPrivate: Boolean = false,
 )
 
 @Serializable
 data class Recipient(val id: Int, val name: String, val detail: String? = null, val type: String = "Profile")
 
 @Serializable
-data class AulaGroup(val id: Int, val name: String)
+data class AulaGroup(val id: Int, val name: String, val institutionCode: String? = null)
 
 @Serializable
 data class Contact(

@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import android.content.Intent
@@ -103,7 +104,12 @@ fun CalendarScreen() {
 
     AulaScreen(
         title = L.t("Kalender"),
-        actions = { if (!isToday) TextButton(onClick = { day = AulaDate.today() }) { Text(L.t("I dag")) } },
+        actions = {
+            if (!isToday) TextButton(onClick = { day = AulaDate.today() }) { Text(L.t("I dag")) }
+            IconButton(onClick = { nav.open("create-event/$day") }, modifier = Modifier.semantics { contentDescription = L.t("Ny begivenhed") }) {
+                Icon(Icons.Filled.Add, null)
+            }
+        },
         refreshing = week.isLoading, onRefresh = { week.refresh() },
         bottomBar = { AulaBottomBar() },
     ) {
@@ -287,7 +293,8 @@ fun EventDetailScreen(key: String) {
             item { Box(Modifier.card()) { HtmlText(html) } }
         }
         val d = detail
-        if (d != null && d.responseRequired && mine.isNotEmpty()) {
+        if (d != null && d.slots.isNotEmpty()) item { MeetingSlotsCard(d, slotPeople(d, event.childIds)) { load() } }
+        if (d != null && d.responseRequired && mine.isNotEmpty() && d.slots.isEmpty()) {
             item { SectionTitle(L.t("Svar")) }
             mine.forEach { inv ->
                 item {

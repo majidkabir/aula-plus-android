@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.MoreVert
 import com.majidkabir.aulaplus.data.Demo
 import androidx.compose.foundation.background
@@ -322,6 +323,8 @@ fun ThreadScreen(id: String) {
     var draft by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var sendError by remember { mutableStateOf<String?>(null) }
+    val photos = remember { mutableStateListOf<PickedPhoto>() }
+    val pickPhotos = rememberPhotoPicker(photos, 10)
     val me = Repo.session.value?.displayName.orEmpty()
 
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -364,7 +367,11 @@ fun ThreadScreen(id: String) {
             if (page.value?.isOwnMailbox != false) Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                 Column(Modifier.navigationBarsPadding().imePadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
                     sendError?.let { Text(it, color = Color(0xFFFF3B30), style = MaterialTheme.typography.bodySmall) }
+                    PhotoStrip(photos)
                     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IconButton(onClick = pickPhotos, modifier = Modifier.semantics { contentDescription = L.t("Vedhæft billeder") }) {
+                            Icon(Icons.Filled.AddPhotoAlternate, null)
+                        }
                         OutlinedTextField(draft, { draft = it }, Modifier.weight(1f), placeholder = { Text(L.t("Skriv et svar")) },
                             maxLines = 6, shape = RoundedCornerShape(22.dp),
                             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
@@ -372,13 +379,13 @@ fun ThreadScreen(id: String) {
                             onClick = {
                                 scope.launch {
                                     sending = true; sendError = null
-                                    runCatching { AulaApi.reply(id, draft.trim()) }
-                                        .onSuccess { draft = ""; page.refresh(); Repo.threads.refresh() }
+                                    runCatching { AulaApi.reply(id, draft.trim(), AulaApi.upload(photos.map { it.jpeg })) }
+                                        .onSuccess { draft = ""; photos.clear(); page.refresh(); Repo.threads.refresh() }
                                         .onFailure { sendError = L.t("Svaret blev ikke sendt: %s", it.message ?: "") }
                                     sending = false
                                 }
                             },
-                            enabled = draft.isNotBlank() && !sending,
+                            enabled = (draft.isNotBlank() || photos.isNotEmpty()) && !sending,
                             modifier = Modifier.size(48.dp).semantics { contentDescription = L.t("Send") },
                         ) {
                             if (sending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
@@ -459,6 +466,8 @@ fun ComposeScreen(draftId: String? = null) {
     var subject by remember { mutableStateOf(draft?.subject ?: "") }
     var text by remember { mutableStateOf(draft?.text ?: "") }
     var sensitive by remember { mutableStateOf(draft?.sensitive ?: false) }
+    val photos = remember { mutableStateListOf<PickedPhoto>() }
+    val pickPhotos = rememberPhotoPicker(photos)
     val hasContent = (subject.isNotBlank() || text.isNotBlank()) &&
         (draft == null || draft.subject != subject || draft.text != text || draft.recipients != recipients.toList())
     fun leave() { if (hasContent) askSave = true else nav.back() }
@@ -478,7 +487,7 @@ fun ComposeScreen(draftId: String? = null) {
             TextButton(enabled = canSend, onClick = {
                 scope.launch {
                     sending = true; error = null
-                    runCatching { AulaApi.startThread(subject, text, recipients.toList(), sensitive) }
+                    runCatching { AulaApi.startThread(subject, text, recipients.toList(), sensitive, AulaApi.upload(photos.map { it.jpeg })) }
                         .onSuccess { draft?.let { Repo.deleteDraft(it.id) }; Repo.threads.refresh(); nav.back() }
                         .onFailure { error = L.t("Beskeden blev ikke sendt: %s", it.message ?: "") }
                     sending = false
@@ -513,6 +522,8 @@ fun ComposeScreen(draftId: String? = null) {
                 OutlinedTextField(subject, { subject = it }, Modifier.fillMaxWidth(), label = { Text(L.t("Emne")) }, singleLine = true)
                 OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = { Text(L.t("Besked")) }, minLines = 6,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
+                TextButton(onClick = pickPhotos) { Icon(Icons.Filled.AddPhotoAlternate, null); Text("  " + L.t("Vedhæft billeder")) }
+                PhotoStrip(photos)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(L.t("Følsom besked"), Modifier.weight(1f))
                     Switch(sensitive, { sensitive = it })

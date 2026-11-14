@@ -2,6 +2,8 @@
 
 package com.majidkabir.aulaplus.ui.screens
 
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.FrontHand
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Groups
@@ -396,6 +398,7 @@ fun GalleryScreen(asTab: Boolean = false) {
     val albums = Repo.albums.value ?: emptyList()
     val children = AppState.children
     AulaScreen(title = L.t("Galleri"), onBack = if (asTab) null else ({ nav.back() }), large = true, refreshing = Repo.albums.isLoading,
+        actions = { IconButton(onClick = { nav.open("create-album") }, modifier = Modifier.semantics { contentDescription = L.t("Nyt album") }) { Icon(Icons.Filled.Add, null) } },
         bottomBar = { if (asTab) AulaBottomBar() },
         onRefresh = { coroutineScope { launch { Repo.notifications.refresh() }; Repo.albums.refresh() } }) {
         item { StaleBanner(Repo.albums.error, Repo.albums.savedAt) }
@@ -498,7 +501,12 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
     val urlsExpired: () -> Unit = {
         if (!refreshedForExpired && !media.isLoading) { refreshedForExpired = true; scope.launch { media.refresh() } }
     }
-    AulaScreen(title = title, onBack = { nav.back() }, refreshing = media.isLoading, onRefresh = { media.refresh() }, spacing = 3.dp) {
+    AulaScreen(title = title, onBack = { nav.back() }, refreshing = media.isLoading, onRefresh = { media.refresh() }, spacing = 3.dp,
+        actions = {
+            if (childId == null) IconButton(onClick = { nav.open("add-photos/$albumId") }, modifier = Modifier.semantics { contentDescription = L.t("Tilføj billeder") }) {
+                Icon(Icons.Filled.AddPhotoAlternate, null)
+            }
+        }) {
         item { StaleBanner(media.error, media.savedAt) }
         if (media.isLoading && media.value != null) item {
             LoadProgress(all.size, if (media.isPartial) media.expected ?: Repo.albums.value?.firstOrNull { it.id == albumId }?.count else null)

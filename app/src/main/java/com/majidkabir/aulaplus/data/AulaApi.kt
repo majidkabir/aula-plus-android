@@ -457,20 +457,39 @@ object AulaApi {
 
     /** Uploads a new profile picture: Aula hands out an upload form for its storage, then links the photo. */
     suspend fun uploadProfilePicture(jpeg: ByteArray, profile: MyProfile, allProfiles: Boolean) {
+        val mediaId = uploadPhoto(jpeg, "profilbillede.jpg", profile.id, profile.institutionCode, tags = listOf(profile.id))
+        call("profiles.updateProfilePicture", body = buildJsonObject {
+            put("institutionProfileId", profile.id); put("mediaId", mediaId); put("applyToAllInstitutionProfiles", allProfiles)
+        })
+    }
+
+    // Creating things: photos, events, albums, meeting times. Shapes read from aula.dk's web app.
+
+    /** My guardian profile at each institution — the owner of what I create there. */
+    suspend fun ownerProfiles(): List<OwnerProfile> =
+        call("profiles.getProfileContext", listOf("portalrole" to "guardian")).asObj().objs("institutions").mapNotNull { i ->
+            val code = i.str("institutionCode") ?: return@mapNotNull null
+            OwnerProfile(i.int("institutionProfileId") ?: return@mapNotNull null, code, i.str("name") ?: code)
+        }
+
+    /** One photo: ask Aula for an upload form, then post the file to its storage. Returns the media id. */
+    suspend fun uploadPhoto(jpeg: ByteArray, name: String, owner: Int, institutionCode: String?,
+                            tags: List<Int> = emptyList(), albumId: Int? = null): Int {
         val uploadId = java.util.UUID.randomUUID().toString()
         val created = call("files.createAttachments", body = buildJsonObject {
             putJsonArray("media") {
                 add(buildJsonObject {
                     putJsonObject("file") {}
-                    put("name", "profilbillede.jpg"); put("mediaType", "image"); put("rotationDegree", 0)
+                    put("name", name); put("mediaType", "image"); put("rotationDegree", 0)
                     put("title", JsonNull); put("description", JsonNull)
-                    putJsonArray("tags") { add(JsonPrimitive(profile.id)) }
-                    put("albumId", JsonNull); put("sensitivityLevel", JsonNull); put("allowsComments", true); put("uploadId", uploadId)
+                    putJsonArray("tags") { tags.forEach { add(JsonPrimitive(it)) } }
+                    if (albumId == null) put("albumId", JsonNull) else put("albumId", albumId)
+                    put("sensitivityLevel", JsonNull); put("allowsComments", true); put("uploadId", uploadId)
                 })
             }
             putJsonArray("files") {}; putJsonArray("links") {}; putJsonArray("existingMedia") {}
-            put("attachedSecureDocumentIds", JsonNull); put("ownerInstitutionProfileId", profile.id)
-            if (profile.institutionCode == null) put("institutionCode", JsonNull) else put("institutionCode", profile.institutionCode)
+            put("attachedSecureDocumentIds", JsonNull); put("ownerInstitutionProfileId", owner)
+            if (institutionCode == null) put("institutionCode", JsonNull) else put("institutionCode", institutionCode)
         }).asObj()
         val media = created.objs("media").let { list -> list.firstOrNull { it.str("uploadId") == uploadId } ?: list.firstOrNull() }
             ?: error("files.createAttachments")
@@ -479,15 +498,97 @@ object AulaApi {
         val action = form.str("action") ?: error("files.createAttachments")
         val builder = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
         form.keys.filter { it != "action" }.forEach { k -> builder.addFormDataPart(k.replace('_', '-'), form.str(k) ?: (form[k]?.toString() ?: "")) }
-        builder.addFormDataPart("file", "profilbillede.jpg", jpeg.toRequestBody("image/jpeg".toMediaType()))
+        builder.addFormDataPart("file", name, jpeg.toRequestBody("image/jpeg".toMediaType()))
         val res = withContext(kotlinx.coroutines.Dispatchers.IO) {
             okhttp3.OkHttpClient().newCall(okhttp3.Request.Builder().url(action).post(builder.build()).build()).execute().use { it.code }
         }
         if (res !in 200..299) error("HTTP $res")
-        call("profiles.updateProfilePicture", body = buildJsonObject {
-            put("institutionProfileId", profile.id); put("mediaId", mediaId); put("applyToAllInstitutionProfiles", allProfiles)
+        return mediaId
+    }
+
+    /** Uploads picked photos as me at the right institution; returns their media ids. */
+    suspend fun upload(photos: List<ByteArray>, institutionCode: String? = null, albumId: Int? = null,
+                       progress: (Int) -> Unit = {}): List<Int> {
+        if (photos.isEmpty()) return emptyList()
+        val owners = ownerProfiles()
+        val owner = owners.firstOrNull { it.institutionCode == institutionCode } ?: owners.firstOrNull() ?: error("profiles.getProfileContext")
+        return photos.mapIndexed { i, p ->
+            uploadPhoto(p, "billede-${i + 1}.jpg", owner.institutionProfileId, owner.institutionCode, albumId = albumId).also { progress(i + 1) }
+        }
+    }
+
+    suspend fun createEvent(e: NewEvent, owner: OwnerProfile) {
+        val zone = AulaDate.copenhagen
+        val fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSZ")
+        fun iso(ms: Long) = java.time.Instant.ofEpochMilli(ms).atZone(zone).format(fmt)
+        var start = e.startMs; var end = e.endMs
+        if (e.allDay) {
+            start = java.time.Instant.ofEpochMilli(e.startMs).atZone(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+            end = java.time.Instant.ofEpochMilli(e.endMs).atZone(zone).toLocalDate().atTime(23, 59).atZone(zone).toInstant().toEpochMilli()
+        }
+        val people = e.invitees.filterNot { it.type.contains("group", true) }
+        val groups = e.invitees.filter { it.type.contains("group", true) }
+        var html = Html.fromPlain(e.description)
+        if (e.location.isNotBlank()) html = "<p>${L.t("Sted")}: ${e.location.replace("&", "&amp;").replace("<", "&lt;")}</p>" + html
+        call("calendar.createSimpleEvent", body = buildJsonObject {
+            put("eventId", JsonNull); put("institutionCode", owner.institutionCode); put("creatorInstProfileId", owner.institutionProfileId)
+            put("title", e.title); put("type", e.type); put("startDateTime", iso(start)); put("endDateTime", iso(end))
+            put("allDay", e.allDay); put("isPrivate", e.isPrivate); put("private", e.isPrivate)
+            put("additionalResourceText", e.location); put("description", html)
+            putJsonArray("inviteeIds") { people.forEach { add(JsonPrimitive(it.id)) } }
+            putJsonArray("invitedGroupIds") { groups.forEach { add(JsonPrimitive(it.id)) } }
+            putJsonArray("inviteeGroups") {
+                groups.forEach { g -> add(buildJsonObject { put("groupId", g.id); putJsonArray("portalRoles") { listOf("guardian", "child", "employee").forEach { add(JsonPrimitive(it)) } } }) }
+            }
+            for (k in listOf("invitedOtpInboxIds", "coOrganizerIds", "resourceIds", "additionalLocationIds", "additionalResourceIds", "attachmentIds")) putJsonArray(k) {}
+            put("primaryResourceId", JsonNull)
+            put("responseRequired", e.responseRequired && e.invitees.isNotEmpty())
+            if (e.deadlineMs == null) put("responseDeadline", JsonNull) else put("responseDeadline", iso(e.deadlineMs))
+            put("maximumNumberOfParticipants", JsonNull); put("doRequestNumberOfParticipants", false)
+            put("addToInstitutionCalendar", false); put("hideInOwnCalendar", false)
+            put("pattern", "never"); put("occurenceLimit", 0); put("weekdayMask", JsonNull); put("maxDate", JsonNull); put("interval", 0)
+            put("isEditEvent", false)
         })
     }
+
+    /** "Opret album"; returns the new album id when Aula sends one. */
+    suspend fun createAlbum(title: String, description: String, groups: List<AulaGroup>, owner: OwnerProfile): Int? {
+        val res = call("gallery.createAlbum", body = buildJsonObject {
+            put("title", title); put("description", description)
+            putJsonArray("sharedWithGroups") {
+                groups.forEach { g ->
+                    add(buildJsonObject {
+                        put("id", g.id); put("groupId", g.id); put("name", g.name)
+                        putJsonArray("portalRoles") { listOf("guardian", "child", "employee").forEach { add(JsonPrimitive(it)) } }
+                    })
+                }
+            }
+            put("creatorInstitutionProfileId", owner.institutionProfileId)
+        })
+        return (res as? JsonPrimitive)?.content?.toIntOrNull() ?: (res as? JsonObject)?.let { it.int("id") ?: it.int("albumId") }
+    }
+
+    private suspend fun slotCall(method: String, eventId: Int, slot: MeetingSlot, profileId: Int, key: String = "concerningInstProfileId") {
+        call(method, body = buildJsonObject {
+            put("eventId", eventId); put("timeSlotId", slot.slotId); put("timeSlotIndex", slot.index); put(key, profileId)
+        })
+    }
+    suspend fun bookSlot(eventId: Int, slot: MeetingSlot, profileId: Int) = slotCall("calendar.respondToTimeSlotEvent", eventId, slot, profileId)
+    suspend fun moveBooking(eventId: Int, slot: MeetingSlot, profileId: Int) = slotCall("calendar.updateResponseToTimeSlotEvent", eventId, slot, profileId)
+    suspend fun cancelBooking(eventId: Int, slot: MeetingSlot, profileId: Int) =
+        slotCall("calendar.removeBlockingOrResponseToTimeSlot", eventId, slot, profileId, "concerningInstitutionProfileId")
+
+    private fun slots(ts: JsonObject?): List<MeetingSlot> = ts.objs("timeSlots").flatMap { s ->
+        val sid = s.int("id") ?: return@flatMap emptyList()
+        val answers = s.objs("answers")
+        s.objs("timeSlotIndexes").mapIndexedNotNull { i, x ->
+            val a = AulaDate.parse(x.str("startTime")) ?: return@mapIndexedNotNull null
+            val b = AulaDate.parse(x.str("endTime")) ?: return@mapIndexedNotNull null
+            val hit = answers.firstOrNull { it.int("selectedTimeSlotIndex") == i }
+            val who = hit?.int("concerningProfileId") ?: hit?.int("instProfileId")
+            MeetingSlot(sid, i, a, b, who, hit != null && who == null)
+        }
+    }.sortedBy { it.startMs }
 
     suspend fun presencePermissions(childIds: List<Int>): List<PresencePermissions> =
         call("presence.getPresenceConfigurationByChildIds", ids(childIds, "childIds[]")).objects().mapNotNull { item ->
@@ -602,18 +703,18 @@ object AulaApi {
         })
     }
 
-    suspend fun reply(threadId: String, text: String) {
+    suspend fun reply(threadId: String, text: String, attachmentIds: List<Int> = emptyList()) {
         call("messaging.reply", body = buildJsonObject {
             put("threadId", idValue(threadId))
-            putJsonObject("message") { put("text", Html.fromPlain(text)); put("attachmentIds", JsonArray(emptyList())) }
+            putJsonObject("message") { put("text", Html.fromPlain(text)); put("attachmentIds", JsonArray(attachmentIds.map { JsonPrimitive(it) })) }
             put("commonInboxId", JsonNull); put("bundleId", JsonNull)
         })
     }
 
-    suspend fun startThread(subject: String, text: String, recipients: List<Recipient>, sensitive: Boolean) {
+    suspend fun startThread(subject: String, text: String, recipients: List<Recipient>, sensitive: Boolean, attachmentIds: List<Int> = emptyList()) {
         call("messaging.startNewThread", body = buildJsonObject {
             put("subject", subject)
-            putJsonObject("message") { put("text", Html.fromPlain(text)); put("attachmentIds", JsonArray(emptyList())) }
+            putJsonObject("message") { put("text", Html.fromPlain(text)); put("attachmentIds", JsonArray(attachmentIds.map { JsonPrimitive(it) })) }
             putJsonArray("recipients") {
                 recipients.forEach { r ->
                     add(buildJsonObject {
@@ -853,7 +954,7 @@ object AulaApi {
 
     suspend fun myGroups(): List<AulaGroup> =
         call("profiles.getProfileContext", listOf("portalrole" to "guardian")).asObj().objs("institutions").flatMap { inst ->
-            inst.objs("groups").mapNotNull { g -> AulaGroup(g.int("id") ?: return@mapNotNull null, g.str("name") ?: L.t("Gruppe")) }
+            inst.objs("groups").mapNotNull { g -> AulaGroup(g.int("id") ?: return@mapNotNull null, g.str("name") ?: L.t("Gruppe"), inst.str("institutionCode")) }
         }.distinctBy { it.id }
 
     suspend fun groupMembers(groupId: Int): List<GroupMember> =
@@ -947,6 +1048,7 @@ object AulaApi {
                 Invitee(i.obj("instProfile").int("institutionProfileId"), i.obj("instProfile").personName() ?: "", i.str("responseType"))
             },
             attachments = d.objs("attachments").map(::attachment),
+            type = d.str("type"), slots = runCatching { slots(d.obj("timeSlot")) }.getOrDefault(emptyList()),
         )
     }
 

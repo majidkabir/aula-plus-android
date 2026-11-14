@@ -127,6 +127,9 @@ fun MainNav(startRoute: String = AppState.tab.route) {
             composable("post/{id}") { PostDetailScreen(it.arguments?.getString("id")?.toIntOrNull() ?: 0) }
             composable("posts") { PostsScreen() }
             composable("gallery") { GalleryScreen() }
+            composable("create-event/{day}") { CreateEventScreen(it.arguments?.getString("day") ?: "") }
+            composable("create-album") { CreateAlbumScreen() }
+            composable("add-photos/{id}") { AddPhotosScreen(it.arguments?.getString("id")?.toIntOrNull() ?: 0) }
             composable("album/{id}") { AlbumScreen(it.arguments?.getString("id")?.toIntOrNull() ?: 0) }
             composable("tagged/{id}") { val id = it.arguments?.getString("id")?.toIntOrNull() ?: 0; AlbumScreen(-id, childId = id) }
             composable("notifications") { NotificationsScreen() }
