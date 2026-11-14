@@ -1,5 +1,7 @@
 package com.majidkabir.aulaplus.data
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import com.majidkabir.aulaplus.core.AulaDate
 import com.majidkabir.aulaplus.widget.WidgetWriter
 import kotlinx.serialization.builtins.ListSerializer
@@ -100,7 +102,19 @@ object Repo {
 
     // region Gallery "new" markers (from Aula's gallery notifications)
 
-    private val galleryNotifications get() = notifications.value.orEmpty().filter { it.isGallery }
+    /**
+     * Gallery notifications already seen here. Kept on the device so the "new" counts stay gone
+     * even when Aula keeps the notification (or deleting it there fails).
+     */
+    private var seenNotificationIds by androidx.compose.runtime.mutableStateOf(
+        if (com.majidkabir.aulaplus.AulaApp.isReady)
+            com.majidkabir.aulaplus.AulaApp.prefs.getString("seenNotificationIds", "")!!.split('\n').filter { it.isNotEmpty() }
+        else emptyList()
+    )
+
+    private val galleryNotifications get() = seenNotificationIds.toSet().let { seen ->
+        notifications.value.orEmpty().filter { it.isGallery && it.id !in seen }
+    }
 
     /** Notifications that make photos "new" in album [albumId], or in child [childId]'s tagged album. */
     fun newNotifications(albumId: Int? = null, childId: Int? = null): List<AulaNotification> = galleryNotifications.filter {
@@ -123,8 +137,13 @@ object Repo {
         val seen = (newNotifications(albumId, childId) + galleryNotifications.filter { it.mediaId in shown }).distinctBy { it.id }
         if (seen.isEmpty()) return
         val ids = seen.map { it.id }.toSet()
-        notifications.mutate { list -> list.filterNot { it.id in ids } }
-        if (!Demo.isOn) runCatching { AulaApi.deleteNotifications(seen) }
+        seenNotificationIds = (seenNotificationIds + ids).takeLast(3000)
+        if (com.majidkabir.aulaplus.AulaApp.isReady) com.majidkabir.aulaplus.AulaApp.prefs.edit()
+            .putString("seenNotificationIds", seenNotificationIds.joinToString("\n")).apply()
+        runCatching {
+            val owners = runCatching { AulaApi.bootstrap().guardianProfileIds }.getOrDefault(emptyList())
+            AulaApi.deleteNotifications(seen, owners)
+        }.onSuccess { notifications.mutate { list -> list.filterNot { it.id in ids } } }
     }
 
     // endregion

@@ -350,9 +350,9 @@ fun GalleryScreen(asTab: Boolean = false) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         row.forEach { c ->
                             val media = Repo.taggedMedia(c.id)
-                            LaunchedEffect(c.id) { media.load(3600) }
+                            // No load here: fetching every child's photos would slow down the album the user opens.
                             AlbumTile(L.t("Billeder af %s", c.firstName),
-                                media.value?.let { L.t(if (media.isPartial) "%d billeder …" else "%d billeder", it.size) } ?: if (media.error != null) L.t("Kunne ikke hente") else L.t("Henter …"),
+                                media.value?.let { L.t(if (media.isPartial) "%d billeder …" else "%d billeder", it.size) } ?: if (media.isLoading) L.t("Henter …") else L.t("Alle billeder af %s", c.firstName),
                                 media.value?.firstOrNull()?.thumbUrl, childColor(c.id), Repo.newCount(childId = c.id),
                                 Modifier.weight(1f).clickable { nav.open("tagged/${c.id}") }) { ChildAvatar(c, 64.dp) }
                         }
@@ -399,8 +399,10 @@ fun AlbumScreen(albumId: Int, childId: Int? = null) {
     var newIds by remember { mutableStateOf(emptySet<Int>()) }
     var filter by remember { mutableStateOf<PhotoFilter>(PhotoFilter.All) }
     LaunchedEffect(albumId, childId) {
-        Repo.notifications.load(60)
+        // Photos first; the "new" markers load alongside instead of before them.
+        val notices = launch { Repo.notifications.load(120) }
         media.load(if (childId == null) 3600 else 600)
+        notices.join()
         // A new-photo notice means the cached list may be missing it.
         val at = media.savedAt
         if (Repo.newCount(albumId.takeIf { childId == null }, childId) > 0 && at != null && System.currentTimeMillis() - at > 30_000) media.refresh()
