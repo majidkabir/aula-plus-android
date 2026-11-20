@@ -1250,7 +1250,10 @@ object AulaApi {
         call("notifications.getNotificationsForActiveProfile", listOf("offset" to "0", "limit" to "50") +
             childIds.map { "activeChildrenIds[]" to "$it" } + institutionCodes.map { "activeInstitutionCodes[]" to it }).objects().map { n ->
             val type = n.str("notificationEventType")
-            val title = n.firstStr("title", "heading", "postTitle", "threadSubject")
+            val album = n.str("albumName")?.takeIf { it.isNotBlank() }?.let {
+                if (type == "NewMedia" || type == "MediaAddedToAlbum") L.t("Nye billeder i albummet: %s", it) else it
+            }
+            val title = n.firstStr("title", "heading", "postTitle", "threadSubject") ?: album ?: n.str("eventTitle")
                 ?: n.str("messageText")?.let(Html::plain) ?: galleryTitle(type) ?: type ?: L.t("Notifikation")
             val rawId = n.str("notificationId")?.takeIf { it.isNotBlank() }
             AulaNotification(n.firstStr("id", "notificationId") ?: title.hashCode().toString(), title,

@@ -28,7 +28,7 @@ import com.majidkabir.aulaplus.data.AulaApi
 import com.majidkabir.aulaplus.data.Repo
 import java.util.concurrent.TimeUnit
 
-/** Polls Aula every ~15–60 min and posts notifications for new messages and posts. No server needed. */
+/** Polls Aula every ~15–60 min and posts notifications for new messages, posts, photos, events … No server needed. */
 class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
         if (!isEnabled || !TokenStore.hasTokens) return Result.success()
@@ -51,6 +51,20 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
                 notify("post-${it.id}".hashCode(), L.t("Nyt opslag: %s", it.title), Html.plain(it.html), "post/${it.id}")
             }
             prefs.edit().putStringSet("seenPosts", posts.map { "${it.id}" }.toSet()).apply()
+        }
+        // Everything else Aula notifies about: new photos, albums, tags, events, invitations, holiday requests …
+        runCatching {
+            val s = AulaApi.bootstrap()
+            val list = AulaApi.notifications(s.children.map { it.id }, s.children.mapNotNull { it.institutionCode }.distinct().sorted())
+            Repo.notifications.replace(list)
+            // First run after an update: only remember what's there, so old items don't all pop up.
+            if (prefs.contains("seenNotifications")) {
+                val seen = prefs.getStringSet("seenNotifications", emptySet()) ?: emptySet()
+                list.take(20).filter { it.id !in seen && it.threadId == null && it.postId == null }.forEach { n ->
+                    notify("note-${n.id}".hashCode(), n.title, n.childName ?: "", n.albumId?.let { "album/$it" } ?: "notifications")
+                }
+            }
+            prefs.edit().putStringSet("seenNotifications", list.map { it.id }.toSet()).apply()
         }
         // Keeps the home-screen widget's status lines current.
         runCatching { Repo.presence.replace(AulaApi.presence(AulaApi.bootstrap().children.map { it.id })) }
@@ -79,7 +93,8 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
             if (on) {
                 // Mark current items as seen so enabling doesn't spam.
                 AulaApp.prefs.edit().putStringSet("seenThreads", Repo.threads.value?.filter { !it.isRead }?.map { it.id }?.toSet() ?: emptySet())
-                    .putStringSet("seenPosts", Repo.posts.value?.map { "${it.id}" }?.toSet() ?: emptySet()).apply()
+                    .putStringSet("seenPosts", Repo.posts.value?.map { "${it.id}" }?.toSet() ?: emptySet())
+                    .putStringSet("seenNotifications", Repo.notifications.value?.map { it.id }?.toSet() ?: emptySet()).apply()
                 schedule(ctx)
             } else WorkManager.getInstance(ctx).cancelUniqueWork(WORK)
         }
