@@ -204,6 +204,7 @@ object L {
         "Ingen kontakter" to "No contacts",
         "Ingen notifikationer" to "No notifications",
         "Ingen opslag" to "No posts",
+        "Nye billeder i albummet: %s" to "New photos in the album: %s",
         "Skift billede" to "Change photo",
         "Institutionen styrer billedet" to "The institution manages the photo",
         "Institutionen tillader ikke, at du ændrer disse oplysninger i Aula." to "The institution doesn't let you change these details in Aula.",
