@@ -22,6 +22,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        // Phones only (64-bit ARM): keeps the APK under GitHub's 100 MB limit for the download link.
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
 
     buildTypes {
