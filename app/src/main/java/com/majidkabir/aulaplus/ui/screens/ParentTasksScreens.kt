@@ -1,5 +1,16 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.ui.components.Loading
+import com.majidkabir.aulaplus.ui.components.TranslateBlock
+import com.majidkabir.aulaplus.ui.components.HtmlText
+import com.majidkabir.aulaplus.data.AulaApi
+import com.majidkabir.aulaplus.data.Repo
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import com.majidkabir.aulaplus.ui.components.openSafely
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.foundation.background
@@ -103,9 +114,7 @@ fun ParentTaskRow(t: ParentTask) {
             tint = if (isDone) Color(0xFF34C759) else MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(26.dp).clickable { ParentTaskFinder.toggle(t) }
                 .semantics { contentDescription = if (isDone) L.t("Markér som ikke klaret") else L.t("Markér som klaret") })
-        Column(Modifier.weight(1f).clickable {
-            t.threadId?.let { nav.open("thread/$it") } ?: t.postId?.let { nav.open("post/$it") }
-        }, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(Modifier.weight(1f).clickable { nav.open("task/${android.net.Uri.encode(t.id)}") }, verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(t.title, style = MaterialTheme.typography.titleSmall, textDecoration = if (isDone) TextDecoration.LineThrough else null,
                 color = if (isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -173,6 +182,70 @@ fun SourceTasksBanner(key: String) {
                 }
                 AddToCalendarButton(t)
             }
+        }
+    }
+}
+
+/** One to-do: what to do, when, and the message or post it came from. */
+@Composable
+fun TaskDetailScreen(id: String) {
+    val nav = LocalNav.current
+    val t = ParentTaskFinder.tasks.firstOrNull { it.id == id } ?: run { nav.back(); return }
+    val isDone = t.id in ParentTaskFinder.done
+    var post by remember { mutableStateOf<com.majidkabir.aulaplus.data.Post?>(null) }
+    var failed by remember { mutableStateOf(false) }
+    val page = t.threadId?.let { Repo.thread(it) }
+    LaunchedEffect(t.id) {
+        if (page != null) { if (page.value == null) page.refresh(); failed = page.value == null }
+        else t.postId?.let { pid ->
+            post = Repo.posts.value?.firstOrNull { it.id == pid } ?: runCatching { AulaApi.post(pid) }.getOrNull()
+            failed = post == null
+        }
+    }
+    AulaScreen(title = L.t("Husk"), onBack = { nav.back() }) {
+        item {
+            Column(Modifier.card(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(t.title, style = MaterialTheme.typography.titleLarge, textDecoration = if (isDone) TextDecoration.LineThrough else null)
+                t.dueDate?.let { d -> Text(dueLabel(d), color = if (d < LocalDate.now(AulaDate.copenhagen) && !isDone) Color(0xFFFF3B30) else Orange) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.FilledTonalButton(onClick = { ParentTaskFinder.toggle(t) }) {
+                        Text(if (isDone) L.t("Markér som ikke klaret") else L.t("Markér som klaret"))
+                    }
+                    AddToCalendarButton(t)
+                }
+            }
+        }
+        item {
+            Column(Modifier.card(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (t.threadId != null) L.t("Fra beskeden") else L.t("Fra opslaget"), style = MaterialTheme.typography.labelLarge, color = Orange)
+                Text(t.sourceTitle, style = MaterialTheme.typography.titleMedium)
+                t.sourceMs?.let { Text(AulaDate.listDate(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                val msgs = page?.value?.messages
+                when {
+                    msgs != null -> {
+                        msgs.take(3).forEach { m ->
+                            HorizontalDivider()
+                            Text(m.sender, style = MaterialTheme.typography.titleSmall)
+                            if (m.deleted) Text(L.t("Beskeden er slettet"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            else { HtmlText(m.html); TranslateBlock(m.html) }
+                        }
+                        TextButton(onClick = { nav.open("thread/${t.threadId}") }) { Text(L.t("Åbn hele beskeden")) }
+                    }
+                    post != null -> {
+                        HorizontalDivider()
+                        HtmlText(post!!.html); TranslateBlock(post!!.html)
+                        TextButton(onClick = { nav.open("post/${t.postId}") }) { Text(L.t("Åbn opslaget")) }
+                    }
+                    failed -> Text(if (t.threadId != null) L.t("Beskeden kunne ikke hentes.") else L.t("Opslaget kunne ikke hentes."),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else -> Loading()
+                }
+            }
+        }
+        item {
+            Text(if (t.byAI) L.t("Fundet af Gemini Nano. Tjek altid den oprindelige tekst.")
+                else L.t("Fundet ud fra ord som \"husk\" og \"medbring\". Tjek altid den oprindelige tekst."),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
