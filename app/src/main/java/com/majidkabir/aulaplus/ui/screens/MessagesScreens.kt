@@ -1,5 +1,6 @@
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.ui.components.TranslateBlock
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.MoreVert
 import com.majidkabir.aulaplus.data.Demo
@@ -443,7 +444,7 @@ fun MessageBubble(m: Message, mine: Boolean, showSender: Boolean) {
             if (showSender && !mine) Text(m.sender.ifEmpty { L.t("Ukendt") }, style = MaterialTheme.typography.titleSmall)
             if (m.deleted) Text(L.t("Beskeden er slettet"), style = MaterialTheme.typography.bodyMedium.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            else HtmlText(m.html)
+            else { HtmlText(m.html); TranslateBlock(m.html) }
             AttachmentList(m.attachments)
             m.dateMs?.let {
                 Text(AulaDate.time(it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

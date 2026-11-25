@@ -60,9 +60,18 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
             // First run after an update: only remember what's there, so old items don't all pop up.
             if (prefs.contains("seenNotifications")) {
                 val seen = prefs.getStringSet("seenNotifications", emptySet()) ?: emptySet()
-                list.take(20).filter { it.id !in seen && it.threadId == null && it.postId == null }.forEach { n ->
-                    notify("note-${n.id}".hashCode(), n.title, n.childName ?: "", n.albumId?.let { "album/$it" } ?: "notifications")
+                val fresh = list.filter { it.id !in seen && it.threadId == null && it.postId == null }
+                // Photos: one notification per album, however many pictures were added.
+                fresh.filter { it.albumId != null }.groupBy { it.albumId!! }.forEach { (albumId, items) ->
+                    val names = items.mapNotNull { it.childName }.distinct().sorted().joinToString(", ")
+                    val count = if (items.size == 1) "" else L.t("%d nye billeder", items.size)
+                    notify("album-$albumId".hashCode(), items.first().title, listOf(count, names).filter { it.isNotEmpty() }.joinToString(" · "), "album/$albumId")
                 }
+                // The rest: one each when there are a few, one summary when there are many.
+                val others = fresh.filter { it.albumId == null }
+                if (others.size > 3) notify("notes-summary".hashCode(), L.t("%d nye notifikationer i Aula", others.size),
+                    others.take(3).joinToString(" · ") { it.title }, "notifications")
+                else others.forEach { n -> notify("note-${n.id}".hashCode(), n.title, n.childName ?: "", "notifications") }
             }
             prefs.edit().putStringSet("seenNotifications", list.map { it.id }.toSet()).apply()
         }

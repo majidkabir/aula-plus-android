@@ -111,6 +111,7 @@ fun MainNav(startRoute: String = AppState.tab.route) {
             composable("compose?draft={draft}") { ComposeScreen(it.arguments?.getString("draft")) }
             composable("folders") { FoldersScreen() }
             composable("tasks") { ParentTasksScreen() }
+            composable("task/{id}") { TaskDetailScreen(android.net.Uri.decode(it.arguments?.getString("id") ?: "")) }
             composable("profile") { MyProfileScreen() }
             composable("groups") { GroupsScreen() }
             composable("group/{key}") { GroupScreen(it.arguments?.getString("key") ?: "") }

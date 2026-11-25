@@ -2,6 +2,7 @@
 
 package com.majidkabir.aulaplus.ui.screens
 
+import com.majidkabir.aulaplus.ui.components.TranslateBlock
 import com.majidkabir.aulaplus.ui.components.MeAvatar
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
@@ -258,6 +259,7 @@ fun PostCard(p: Post, compact: Boolean, onClick: (() -> Unit)? = null) {
         } else {
             HorizontalDivider()
             HtmlText(p.html)
+            TranslateBlock(p.html)
             AttachmentList(p.attachments)
         }
     }
